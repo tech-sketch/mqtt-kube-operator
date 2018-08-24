@@ -12,55 +12,18 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	appsv1 "k8s.io/api/apps/v1"
-	apiv1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/tech-sketch/mqtt-kube-operator/handlers"
 )
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
 }
 
-var clientset *kubernetes.Clientset
-var f mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	log.Printf("received msg: %s\n", msg.Payload())
-	decode := scheme.Codecs.UniversalDeserializer().Decode
-	rawData, _, err := decode([]byte(msg.Payload()), nil, nil)
-	if err != nil {
-		log.Printf("ignore format, skip this message: %s\n", err.Error())
-	}
-	switch obj := rawData.(type) {
-	case *appsv1.Deployment:
-		deploymentsClient := clientset.AppsV1().Deployments(apiv1.NamespaceDefault)
-		name := obj.ObjectMeta.Name
-		_, getErr := deploymentsClient.Get(name, metav1.GetOptions{})
-
-		if getErr == nil {
-			result, err := deploymentsClient.Update(obj)
-			if err != nil {
-				log.Panicf("update deployment err: %s\n", err.Error())
-			}
-			log.Printf("update deployment %q\n", result.GetObjectMeta().GetName())
-		} else if errors.IsNotFound(getErr) {
-			result, err := deploymentsClient.Create(obj)
-			if err != nil {
-				log.Panicf("create deployment err: %s\n", err.Error())
-			}
-			log.Printf("created deployment %q\n", result.GetObjectMeta().GetName())
-		} else {
-			log.Panicf("get deployment err: %s\n", getErr.Error())
-		}
-	default:
-		log.Println("unknown format, skip this message")
-	}
-}
-
-func getConfig() (*rest.Config, error) {
+func getKubeConfig() (*rest.Config, error) {
 	kubeConfigPath := os.Getenv("KUBE_CONF_PATH")
 	if kubeConfigPath != "" {
 		return clientcmd.BuildConfigFromFlags("", kubeConfigPath)
@@ -68,37 +31,21 @@ func getConfig() (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
-func main() {
-	log.Println("start main")
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	config, err := getConfig()
-	if err != nil {
-		log.Panicf("getConfig error: %s\n", err.Error())
-	}
-
-	clientset, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Panicf("kubernetes.NewForConfig error: %s\n", err.Error())
-	}
-
+func getMQTTOptions() (*mqtt.ClientOptions, error) {
 	caPath := os.Getenv("MQTT_TLS_CA_PATH")
 	username := os.Getenv("MQTT_USERNAME")
 	password := os.Getenv("MQTT_PASSWORD")
 	host := os.Getenv("MQTT_HOST")
 	port := os.Getenv("MQTT_PORT")
-	topic := os.Getenv("MQTT_TOPIC")
 
 	ca, err := ioutil.ReadFile(caPath)
 	if err != nil {
-		log.Panicf("can not read '%s': %s\n", caPath, err.Error())
+		return nil, fmt.Errorf("can not read '%s': %s", caPath, err.Error())
 	}
 
 	rootCA := x509.NewCertPool()
 	if !rootCA.AppendCertsFromPEM(ca) {
-		log.Panicf("failed to parse root certificate: %s\n", caPath)
+		return nil, fmt.Errorf("failed to parse root certificate: %s", caPath)
 	}
 	tlsConfig := &tls.Config{RootCAs: rootCA}
 
@@ -110,8 +57,34 @@ func main() {
 	opts.SetUsername(username)
 	opts.SetPassword(password)
 
+	return opts, nil
+}
+
+func main() {
+	log.Println("start main")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	config, err := getKubeConfig()
+	if err != nil {
+		log.Panicf("getConfig error: %s\n", err.Error())
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Panicf("kubernetes.NewForConfig error: %s\n", err.Error())
+	}
+	messageHandler := handlers.NewMessageHandler(clientset).GetHandler()
+
+	opts, err := getMQTTOptions()
+	if err != nil {
+		log.Panicf("getMQTTOptions error: %s\n", err.Error())
+	}
+
+	topic := os.Getenv("MQTT_TOPIC")
 	opts.OnConnect = func(c mqtt.Client) {
-		if token := c.Subscribe(topic, 0, f); token.Wait() && token.Error() != nil {
+		if token := c.Subscribe(topic, 0, messageHandler); token.Wait() && token.Error() != nil {
 			log.Panicf("mqtt subscribe error: %s\n", token.Error())
 		}
 	}

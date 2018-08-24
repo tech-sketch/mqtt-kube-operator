@@ -36,7 +36,7 @@ run:
 	@echo "MQTT_HOST=${MQTT_HOST}"
 	@echo "MQTT_PORT=${MQTT_PORT}"
 	@echo "MQTT_TOPIC=${MQTT_TOPIC}"
-	$(GOBUILD) -o $(NAME) -v ./...
+	$(GOBUILD) -o $(NAME) -v
 	./$(NAME)
 cross-compile:
 	@echo "---cross-compile---"
