@@ -13,10 +13,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-var logger *zap.SugaredLogger
-
 type MessageHandler struct {
 	kubeClient *kubernetes.Clientset
+	logger     *zap.SugaredLogger
 }
 
 func NewMessageHandler(clientset *kubernetes.Clientset) *MessageHandler {
@@ -24,52 +23,81 @@ func NewMessageHandler(clientset *kubernetes.Clientset) *MessageHandler {
 	if err != nil {
 		panic(err)
 	}
-	logger = l.Sugar()
+	logger := l.Sugar()
 
 	return &MessageHandler{
 		kubeClient: clientset,
+		logger:     logger,
 	}
 }
 
-func (messageHandler *MessageHandler) Close() {
-	logger.Sync()
+func (h *MessageHandler) Close() {
+	h.logger.Sync()
 }
 
-func (messageHandler *MessageHandler) Apply() mqtt.MessageHandler {
+func (h *MessageHandler) Apply() mqtt.MessageHandler {
+	return h.operate("received apply msg", h.applyDeployment)
+}
+
+func (h *MessageHandler) Delete() mqtt.MessageHandler {
+	return h.operate("received delete msg", h.deleteDeployment)
+}
+
+func (h *MessageHandler) operate(info string, operation func(deployment *appsv1.Deployment)) mqtt.MessageHandler {
 	return func(client mqtt.Client, msg mqtt.Message) {
-		logger.Infof("received msg: %s\n", msg.Payload())
+		h.logger.Infof("%s: %s\n", info, msg.Payload())
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		rawData, _, err := decode([]byte(msg.Payload()), nil, nil)
 		if err != nil {
-			logger.Infof("ignore format, skip this message: %s\n", err.Error())
+			h.logger.Infof("ignore format, skip this message: %s\n", err.Error())
 		}
 		switch obj := rawData.(type) {
 		case *appsv1.Deployment:
-			messageHandler.applyDeployment(obj)
+			operation(obj)
 		default:
-			logger.Infof("unknown format, skip this message")
+			h.logger.Infof("unknown format, skip this message")
 		}
 	}
 }
 
-func (messageHandler *MessageHandler) applyDeployment(deployment *appsv1.Deployment) {
-	deploymentsClient := messageHandler.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
+func (h *MessageHandler) applyDeployment(deployment *appsv1.Deployment) {
+	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
 	name := deployment.ObjectMeta.Name
 	_, getErr := deploymentsClient.Get(name, metav1.GetOptions{})
 
 	if getErr == nil {
 		result, err := deploymentsClient.Update(deployment)
 		if err != nil {
-			logger.Errorf("update deployment err: %s\n", err.Error())
+			h.logger.Errorf("update deployment err: %s\n", err.Error())
 		}
-		logger.Infof("update deployment %q\n", result.GetObjectMeta().GetName())
+		h.logger.Infof("update deployment %q\n", result.GetObjectMeta().GetName())
 	} else if errors.IsNotFound(getErr) {
 		result, err := deploymentsClient.Create(deployment)
 		if err != nil {
-			logger.Errorf("create deployment err: %s\n", err.Error())
+			h.logger.Errorf("create deployment err: %s\n", err.Error())
 		}
-		logger.Infof("created deployment %q\n", result.GetObjectMeta().GetName())
+		h.logger.Infof("create deployment %q\n", result.GetObjectMeta().GetName())
 	} else {
-		logger.Errorf("get deployment err: %s\n", getErr.Error())
+		h.logger.Errorf("get deployment err: %s\n", getErr.Error())
+	}
+}
+
+func (h *MessageHandler) deleteDeployment(deployment *appsv1.Deployment) {
+	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
+	name := deployment.ObjectMeta.Name
+	_, getErr := deploymentsClient.Get(name, metav1.GetOptions{})
+
+	if getErr == nil {
+		deletePolicy := metav1.DeletePropagationForeground
+		if err := deploymentsClient.Delete(name, &metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+		}); err != nil {
+			h.logger.Errorf("delete deployment err: %s\n", err.Error())
+		}
+		h.logger.Infof("delete deployment %q\n", name)
+	} else if errors.IsNotFound(getErr) {
+		h.logger.Warnf("deployment does not exist: %s\n", name)
+	} else {
+		h.logger.Errorf("get deployment err: %s\n", getErr.Error())
 	}
 }

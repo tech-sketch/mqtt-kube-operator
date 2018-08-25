@@ -36,7 +36,8 @@ run:
 	@echo "MQTT_PASSWORD=${MQTT_PASSWORD}"
 	@echo "MQTT_HOST=${MQTT_HOST}"
 	@echo "MQTT_PORT=${MQTT_PORT}"
-	@echo "MQTT_TOPIC=${MQTT_TOPIC}"
+	@echo "MQTT_APPLY_TOPIC=${MQTT_APPLY_TOPIC}"
+	@echo "MQTT_DELETE_TOPIC=${MQTT_DELETE_TOPIC}"
 	$(GOBUILD) -o $(NAME) -v
 	./$(NAME)
 cross-compile:

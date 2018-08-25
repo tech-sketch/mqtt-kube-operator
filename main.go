@@ -95,10 +95,15 @@ func main() {
 	messageHandler := handlers.NewMessageHandler(clientset)
 	defer messageHandler.Close()
 
-	topic := os.Getenv("MQTT_TOPIC")
+	applyTopic := os.Getenv("MQTT_APPLY_TOPIC")
+	deleteTopic := os.Getenv("MQTT_DELETE_TOPIC")
 	opts.OnConnect = func(c mqtt.Client) {
-		if token := c.Subscribe(topic, 0, messageHandler.Apply()); token.Wait() && token.Error() != nil {
-			logger.Errorf("mqtt subscribe error: %s\n", token.Error())
+		if applyToken := c.Subscribe(applyTopic, 0, messageHandler.Apply()); applyToken.Wait() && applyToken.Error() != nil {
+			logger.Errorf("mqtt subscribe error, topic=%s, %s\n", applyTopic, applyToken.Error())
+			panic(err)
+		}
+		if deleteToken := c.Subscribe(deleteTopic, 0, messageHandler.Delete()); deleteToken.Wait() && deleteToken.Error() != nil {
+			logger.Errorf("mqtt subscribe error, topic=%s, %s\n", deleteTopic, deleteToken.Error())
 			panic(err)
 		}
 	}
