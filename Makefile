@@ -9,7 +9,7 @@ GOGET=$(GOCMD) get
 GOOS_CONTAINER=linux
 GOARCH_CONTAINER=amd64
 CONTAINER_BINARY=docker_$(NAME)
-CONTAINER_IMAGE=tech-sketch/$(NAME)
+CONTAINER_IMAGE=techsketch/$(NAME)
 
 
 all: deps test cross-compile docker-build
@@ -46,6 +46,6 @@ cross-compile:
 docker-build:
 	@echo "---docker-build---"
 	docker build --build-arg CONTAINER_BINARY=$(CONTAINER_BINARY) -t $(CONTAINER_IMAGE):$(VERSION) .
-docker-push:
-	@echo "---docker-push---"
-docker push $(CONTAINER_IMAGE):$(VERSION)
+push:
+	@echo "---push---"
+	docker push $(CONTAINER_IMAGE):$(VERSION)
