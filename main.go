@@ -20,16 +20,6 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/handlers"
 )
 
-var logger *zap.SugaredLogger
-
-func init() {
-	l, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
-	logger = l.Sugar()
-}
-
 func getKubeConfig() (*rest.Config, error) {
 	kubeConfigPath := os.Getenv("KUBE_CONF_PATH")
 	if kubeConfigPath != "" {
@@ -68,7 +58,13 @@ func getMQTTOptions() (*mqtt.ClientOptions, error) {
 }
 
 func main() {
+	l, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	logger := l.Sugar()
 	defer logger.Sync()
+
 	logger.Infof("start main")
 
 	c := make(chan os.Signal, 1)
@@ -92,8 +88,7 @@ func main() {
 		panic(err)
 	}
 
-	messageHandler := handlers.NewMessageHandler(clientset)
-	defer messageHandler.Close()
+	messageHandler := handlers.NewMessageHandler(clientset, logger)
 
 	applyTopic := os.Getenv("MQTT_APPLY_TOPIC")
 	deleteTopic := os.Getenv("MQTT_DELETE_TOPIC")
