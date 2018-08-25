@@ -5,10 +5,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"go.uber.org/zap"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
@@ -19,8 +20,14 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/handlers"
 )
 
+var logger *zap.SugaredLogger
+
 func init() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
+	l, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	logger = l.Sugar()
 }
 
 func getKubeConfig() (*rest.Config, error) {
@@ -61,39 +68,47 @@ func getMQTTOptions() (*mqtt.ClientOptions, error) {
 }
 
 func main() {
-	log.Println("start main")
+	defer logger.Sync()
+	logger.Infof("start main")
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	config, err := getKubeConfig()
 	if err != nil {
-		log.Panicf("getConfig error: %s\n", err.Error())
+		logger.Errorf("getConfig error: %s\n", err.Error())
+		panic(err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Panicf("kubernetes.NewForConfig error: %s\n", err.Error())
+		logger.Errorf("kubernetes.NewForConfig error: %s\n", err.Error())
+		panic(err)
 	}
-	messageHandler := handlers.NewMessageHandler(clientset).GetHandler()
 
 	opts, err := getMQTTOptions()
 	if err != nil {
-		log.Panicf("getMQTTOptions error: %s\n", err.Error())
+		logger.Errorf("getMQTTOptions error: %s\n", err.Error())
+		panic(err)
 	}
+
+	messageHandler := handlers.NewMessageHandler(clientset)
+	defer messageHandler.Close()
 
 	topic := os.Getenv("MQTT_TOPIC")
 	opts.OnConnect = func(c mqtt.Client) {
-		if token := c.Subscribe(topic, 0, messageHandler); token.Wait() && token.Error() != nil {
-			log.Panicf("mqtt subscribe error: %s\n", token.Error())
+		if token := c.Subscribe(topic, 0, messageHandler.Apply()); token.Wait() && token.Error() != nil {
+			logger.Errorf("mqtt subscribe error: %s\n", token.Error())
+			panic(err)
 		}
 	}
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		log.Panicf("mqtt connect error: %s\n", token.Error())
+		logger.Errorf("mqtt connect error: %s\n", token.Error())
+		panic(err)
 	} else {
-		log.Println("Connected to server, start loop")
+		logger.Infof("Connected to server, start loop")
 	}
 	<-c
-	log.Println("finish main")
+	logger.Infof("finish main")
 }

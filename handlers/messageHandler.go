@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"go.uber.org/zap"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
@@ -13,29 +13,41 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+var logger *zap.SugaredLogger
+
 type MessageHandler struct {
 	kubeClient *kubernetes.Clientset
 }
 
 func NewMessageHandler(clientset *kubernetes.Clientset) *MessageHandler {
+	l, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	logger = l.Sugar()
+
 	return &MessageHandler{
 		kubeClient: clientset,
 	}
 }
 
-func (messageHandler *MessageHandler) GetHandler() mqtt.MessageHandler {
+func (messageHandler *MessageHandler) Close() {
+	logger.Sync()
+}
+
+func (messageHandler *MessageHandler) Apply() mqtt.MessageHandler {
 	return func(client mqtt.Client, msg mqtt.Message) {
-		log.Printf("received msg: %s\n", msg.Payload())
+		logger.Infof("received msg: %s\n", msg.Payload())
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		rawData, _, err := decode([]byte(msg.Payload()), nil, nil)
 		if err != nil {
-			log.Printf("ignore format, skip this message: %s\n", err.Error())
+			logger.Infof("ignore format, skip this message: %s\n", err.Error())
 		}
 		switch obj := rawData.(type) {
 		case *appsv1.Deployment:
 			messageHandler.applyDeployment(obj)
 		default:
-			log.Println("unknown format, skip this message")
+			logger.Infof("unknown format, skip this message")
 		}
 	}
 }
@@ -48,16 +60,16 @@ func (messageHandler *MessageHandler) applyDeployment(deployment *appsv1.Deploym
 	if getErr == nil {
 		result, err := deploymentsClient.Update(deployment)
 		if err != nil {
-			log.Panicf("update deployment err: %s\n", err.Error())
+			logger.Errorf("update deployment err: %s\n", err.Error())
 		}
-		log.Printf("update deployment %q\n", result.GetObjectMeta().GetName())
+		logger.Infof("update deployment %q\n", result.GetObjectMeta().GetName())
 	} else if errors.IsNotFound(getErr) {
 		result, err := deploymentsClient.Create(deployment)
 		if err != nil {
-			log.Panicf("create deployment err: %s\n", err.Error())
+			logger.Errorf("create deployment err: %s\n", err.Error())
 		}
-		log.Printf("created deployment %q\n", result.GetObjectMeta().GetName())
+		logger.Infof("created deployment %q\n", result.GetObjectMeta().GetName())
 	} else {
-		log.Panicf("get deployment err: %s\n", getErr.Error())
+		logger.Errorf("get deployment err: %s\n", getErr.Error())
 	}
 }

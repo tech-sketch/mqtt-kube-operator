@@ -17,6 +17,7 @@ deps:
 	@echo "---deps---"
 	$(GOGET) k8s.io/client-go/...
 	$(GOGET) github.com/eclipse/paho.mqtt.golang
+	$(GOGET) go.uber.org/zap
 build:
 	@echo "---build---"
 	$(GOBUILD) -o $(NAME) -v
