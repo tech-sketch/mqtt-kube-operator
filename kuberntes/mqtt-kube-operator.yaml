@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mqtt-kube-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mqtt-kube-operator
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["services", "configmaps", "secrets"]
+  verbs: ["get", "list", "create", "update", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mqtt-kube-operator
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mqtt-kube-operator
+subjects:
+- kind: ServiceAccount
+  name: mqtt-kube-operator
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-kube-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt-kube-operator
+  template:
+    metadata:
+      labels:
+        app: mqtt-kube-operator
+    spec:
+      serviceAccountName: mqtt-kube-operator
+      containers:
+      - name: mqtt-kube-operator
+        image: techsketch/mqtt-kube-operator:0.1.0
+        imagePullPolicy: Always
+        env:
+        - name: MQTT_TLS_CA_PATH
+          value: "/etc/mqtt/ca.crt"
+        - name: MQTT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mqtt-username-password
+              key: mqtt_username
+        - name: MQTT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mqtt-username-password
+              key: mqtt_password
+        - name: MQTT_HOST
+          value: "mqtt.cloudconductor.jp"
+        - name: MQTT_PORT
+          value: "8883"
+        - name: MQTT_APPLY_TOPIC
+          value: "/mqtt-kube-operator/apply"
+        - name: MQTT_DELETE_TOPIC
+          value: "/mqtt-kube-operator/delete"
+        volumeMounts:
+        - mountPath: "/etc/mqtt"
+          name: mqtt-ca-crt
+          readOnly: true
+      volumes:
+      - name: mqtt-ca-crt
+        secret:
+          secretName: mqtt-ca-crt
