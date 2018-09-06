@@ -27,7 +27,6 @@ This REST API accept Environment Variables like below:
 |`MQTT_PASSWORD`|password used to connect MQTT Broker|
 |`MQTT_HOST`|hostname of MQTT Broker|
 |`MQTT_PORT`|port of MQTT Broker|
-|`MQTT_PORT`|port of MQTT Broker|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally
@@ -61,6 +60,12 @@ This REST API accept Environment Variables like below:
 
     ```bash
     $ make
+    ```
+1. push container to DockerHub
+
+    ```bash
+    $ docker login
+    $ make push
     ```
 
 ## License
