@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -24,7 +26,7 @@ func newDeploymentHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLo
 	}
 }
 
-func (h *deploymentHandler) apply(rawData runtime.Object) {
+func (h *deploymentHandler) apply(rawData runtime.Object) string {
 	deployment := rawData.(*appsv1.Deployment)
 	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
 	name := deployment.ObjectMeta.Name
@@ -39,21 +41,31 @@ func (h *deploymentHandler) apply(rawData runtime.Object) {
 			return err
 		})
 		if err != nil {
-			h.logger.Errorf("update deployment err: %s\n", err.Error())
+			msg := fmt.Sprintf("update deployment err: %s\n", err.Error())
+			h.logger.Errorf(msg)
+			return msg
 		}
-		h.logger.Infof("update deployment %q\n", name)
+		msg := fmt.Sprintf("update deployment %q\n", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := deploymentsClient.Create(deployment)
 		if err != nil {
-			h.logger.Errorf("create deployment err: %s\n", err.Error())
+			msg := fmt.Sprintf("create deployment err: %s\n", err.Error())
+			h.logger.Errorf(msg)
+			return msg
 		}
-		h.logger.Infof("create deployment %q\n", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create deployment %q\n", result.GetObjectMeta().GetName())
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get deployment err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get deployment err: %s\n", getErr.Error())
+		h.logger.Errorf(msg)
+		return msg
 	}
 }
 
-func (h *deploymentHandler) delete(rawData runtime.Object) {
+func (h *deploymentHandler) delete(rawData runtime.Object) string {
 	deployment := rawData.(*appsv1.Deployment)
 	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
 	name := deployment.ObjectMeta.Name
@@ -64,12 +76,20 @@ func (h *deploymentHandler) delete(rawData runtime.Object) {
 		if err := deploymentsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			h.logger.Errorf("delete deployment err: %s\n", err.Error())
+			msg := fmt.Sprintf("delete deployment err: %s\n", err.Error())
+			h.logger.Errorf(msg)
+			return msg
 		}
-		h.logger.Infof("delete deployment %q\n", name)
+		msg := fmt.Sprintf("delete deployment %q\n", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
-		h.logger.Infof("deployment does not exist: %s\n", name)
+		msg := fmt.Sprintf("deployment does not exist: %s\n", name)
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get deployment err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get deployment err: %s\n", getErr.Error())
+		h.logger.Errorf(msg)
+		return msg
 	}
 }
