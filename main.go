@@ -37,12 +37,12 @@ func getMQTTOptions() (*mqtt.ClientOptions, error) {
 
 	ca, err := ioutil.ReadFile(caPath)
 	if err != nil {
-		return nil, fmt.Errorf("can not read '%s': %s", caPath, err.Error())
+		return nil, fmt.Errorf("can not read '%q': %q", caPath, err.Error())
 	}
 
 	rootCA := x509.NewCertPool()
 	if !rootCA.AppendCertsFromPEM(ca) {
-		return nil, fmt.Errorf("failed to parse root certificate: %s", caPath)
+		return nil, fmt.Errorf("failed to parse root certificate: %q", caPath)
 	}
 	tlsConfig := &tls.Config{RootCAs: rootCA}
 
@@ -72,19 +72,19 @@ func main() {
 
 	config, err := getKubeConfig()
 	if err != nil {
-		logger.Errorf("getConfig error: %s\n", err.Error())
+		logger.Errorf("getConfig error: %q", err.Error())
 		panic(err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		logger.Errorf("kubernetes.NewForConfig error: %s\n", err.Error())
+		logger.Errorf("kubernetes.NewForConfig error: %q", err.Error())
 		panic(err)
 	}
 
 	opts, err := getMQTTOptions()
 	if err != nil {
-		logger.Errorf("getMQTTOptions error: %s\n", err.Error())
+		logger.Errorf("getMQTTOptions error: %q", err.Error())
 		panic(err)
 	}
 
@@ -93,13 +93,13 @@ func main() {
 
 	opts.OnConnect = func(c mqtt.Client) {
 		if cmdToken := c.Subscribe(messageHandler.GetCmdTopic(), 0, messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
-			logger.Errorf("mqtt subscribe error, topic=%s, %s\n", cmdTopic, cmdToken.Error())
+			logger.Errorf("mqtt subscribe error, topic=%q, %q", cmdTopic, cmdToken.Error())
 			panic(cmdToken.Error())
 		}
 	}
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		logger.Errorf("mqtt connect error: %s\n", token.Error())
+		logger.Errorf("mqtt connect error: %q", token.Error())
 		panic(token.Error())
 	} else {
 		logger.Infof("Connected to server, start loop")

@@ -73,16 +73,16 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 	r := regexp.MustCompile(`^([\w\-]+)@([\w\-]+)\|(.*)$`)
 
 	return func(client mqtt.Client, msg mqtt.Message) {
-		h.logger.Infof("received message: %s\n", msg.Payload())
+		h.logger.Infof("received message: %q", msg.Payload())
 		g := r.FindSubmatch(msg.Payload())
 
 		sendMessage := func(resultMsg string) {
 			result := fmt.Sprintf("%s@%s|%s", g[1], g[2], resultMsg)
 			if resultToken := client.Publish(h.GetCmdExeTopic(), 0, false, result); resultToken.Wait() && resultToken.Error() != nil {
-				h.logger.Errorf("mqtt publish error, topic=%s, %s\n", "", resultToken.Error())
+				h.logger.Errorf("mqtt publish error, topic=%q, %q", h.GetCmdExeTopic(), resultToken.Error())
 				panic(resultToken.Error())
 			}
-			h.logger.Infof("send message: %s\n", result)
+			h.logger.Infof("send message: %q", result)
 		}
 
 		if len(g[3]) == 0 {
@@ -99,7 +99,7 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 			return
 		}
 
-		h.logger.Infof("data: %s", data)
+		h.logger.Infof("data: %q", data)
 		var resultMsg string
 		switch string(g[2][:]) {
 		case "apply":
@@ -129,8 +129,8 @@ func (h *MessageHandler) operate(operations map[handlerType]func(rawData runtime
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	rawData, _, err := decode([]byte(data), nil, nil)
 	if err != nil {
-		msg := fmt.Sprintf("ignore format, skip this message: %s\n", err.Error())
-		h.logger.Infof(msg)
+		msg := "ignore format, skip this message"
+		h.logger.Infof("%s: %s", msg, err.Error())
 		return msg
 	}
 

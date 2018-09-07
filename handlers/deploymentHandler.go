@@ -41,26 +41,26 @@ func (h *deploymentHandler) apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update deployment err: %s\n", err.Error())
-			h.logger.Errorf(msg)
+			msg := fmt.Sprintf("update deployment err (%q)", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("update deployment %q\n", name)
+		msg := fmt.Sprintf("update deployment (%q)", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := deploymentsClient.Create(deployment)
 		if err != nil {
-			msg := fmt.Sprintf("create deployment err: %s\n", err.Error())
-			h.logger.Errorf(msg)
+			msg := fmt.Sprintf("create deployment err (%q)", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("create deployment %q\n", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create deployment (%q)", result.GetObjectMeta().GetName())
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get deployment err: %s\n", getErr.Error())
-		h.logger.Errorf(msg)
+		msg := fmt.Sprintf("get deployment err (%q)", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}
 }
@@ -76,20 +76,20 @@ func (h *deploymentHandler) delete(rawData runtime.Object) string {
 		if err := deploymentsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			msg := fmt.Sprintf("delete deployment err: %s\n", err.Error())
-			h.logger.Errorf(msg)
+			msg := fmt.Sprintf("delete deployment err (%q)", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete deployment %q\n", name)
+		msg := fmt.Sprintf("delete deployment %q", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
-		msg := fmt.Sprintf("deployment does not exist: %s\n", name)
+		msg := fmt.Sprintf("deployment does not exist (%q)", name)
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get deployment err: %s\n", getErr.Error())
-		h.logger.Errorf(msg)
+		msg := fmt.Sprintf("get deployment err (%q)", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}
 }
