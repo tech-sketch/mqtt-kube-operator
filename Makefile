@@ -30,6 +30,7 @@ clean:
 	rm -f $(CONTAINER_BINARY)
 run:
 	@echo "---run---"
+	@echo "MQTT_USE_TLS=${MQTT_USE_TLS}"
 	@echo "KUBE_CONF_PATH=${KUBE_CONF_PATH}"
 	@echo "MQTT_TLS_CA_PATH=${MQTT_TLS_CA_PATH}"
 	@echo "MQTT_USERNAME=${MQTT_USERNAME}"
