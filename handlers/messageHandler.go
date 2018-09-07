@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -77,6 +78,7 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 		g := r.FindSubmatch(msg.Payload())
 
 		sendMessage := func(resultMsg string) {
+			time.Sleep(500 * time.Millisecond)
 			result := fmt.Sprintf("%s@%s|%s", g[1], g[2], resultMsg)
 			if resultToken := client.Publish(h.GetCmdExeTopic(), 0, false, result); resultToken.Wait() && resultToken.Error() != nil {
 				h.logger.Errorf("mqtt publish error, topic=%q, %q", h.GetCmdExeTopic(), resultToken.Error())
