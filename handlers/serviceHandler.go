@@ -40,25 +40,25 @@ func (h *serviceHandler) apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update service err (%q)", name)
+			msg := fmt.Sprintf("update service err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("update service (%q)", name)
+		msg := fmt.Sprintf("update service -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := servicesClient.Create(service)
 		if err != nil {
-			msg := fmt.Sprintf("create service err (%q)", name)
+			msg := fmt.Sprintf("create service err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("create service (%q)", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create service -- %s", result.GetObjectMeta().GetName())
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get service err (%q)", name)
+		msg := fmt.Sprintf("get service err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}
@@ -75,19 +75,19 @@ func (h *serviceHandler) delete(rawData runtime.Object) string {
 		if err := servicesClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			msg := fmt.Sprintf("delete service err (%q)", name)
+			msg := fmt.Sprintf("delete service err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete service (%q)", name)
+		msg := fmt.Sprintf("delete service -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
-		msg := fmt.Sprintf("service does not exist (%q)", name)
+		msg := fmt.Sprintf("service does not exist -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get service err (%q)", name)
+		msg := fmt.Sprintf("get service err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}

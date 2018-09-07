@@ -40,25 +40,25 @@ func (h *configmapHandler) apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update configmap err (%q)", name)
+			msg := fmt.Sprintf("update configmap err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("update configmap (%q)", name)
+		msg := fmt.Sprintf("update configmap -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := configmapsClient.Create(configmap)
 		if err != nil {
-			msg := fmt.Sprintf("create configmap err (%q)", name)
+			msg := fmt.Sprintf("create configmap err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("create configmap (%q)", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create configmap -- %s", result.GetObjectMeta().GetName())
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get configmap err (%q)", name)
+		msg := fmt.Sprintf("get configmap err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}
@@ -75,19 +75,19 @@ func (h *configmapHandler) delete(rawData runtime.Object) string {
 		if err := configmapsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			msg := fmt.Sprintf("delete configmap err (%q)", name)
+			msg := fmt.Sprintf("delete configmap err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete configmap (%q)", name)
+		msg := fmt.Sprintf("delete configmap -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
-		msg := fmt.Sprintf("configmap does not exist (%q)", name)
+		msg := fmt.Sprintf("configmap does not exist -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get configmap err (%q)", name)
+		msg := fmt.Sprintf("get configmap err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}

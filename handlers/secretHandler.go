@@ -41,25 +41,25 @@ func (h *secretHandler) apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update secret err: (%q)", name)
+			msg := fmt.Sprintf("update secret err: -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("update secret (%q)", name)
+		msg := fmt.Sprintf("update secret -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := secretsClient.Create(secret)
 		if err != nil {
-			msg := fmt.Sprintf("create secret err (%q)", name)
+			msg := fmt.Sprintf("create secret err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("create secret (%q)", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create secret -- %s", result.GetObjectMeta().GetName())
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get secret err (%q)", name)
+		msg := fmt.Sprintf("get secret err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}
@@ -76,19 +76,19 @@ func (h *secretHandler) delete(rawData runtime.Object) string {
 		if err := secretsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			msg := fmt.Sprintf("delete secret err (%q)", name)
+			msg := fmt.Sprintf("delete secret err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete secret (%q)", name)
+		msg := fmt.Sprintf("delete secret -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
-		msg := fmt.Sprintf("secret does not exist (%q)", name)
+		msg := fmt.Sprintf("secret does not exist -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else {
-		msg := fmt.Sprintf("get secret err (%q)", name)
+		msg := fmt.Sprintf("get secret err -- %s", name)
 		h.logger.Errorf("%s: %s", msg, getErr.Error())
 		return msg
 	}

@@ -74,17 +74,17 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 	r := regexp.MustCompile(`^([\w\-]+)@([\w\-]+)\|(.*)$`)
 
 	return func(client mqtt.Client, msg mqtt.Message) {
-		h.logger.Infof("received message: %q", msg.Payload())
+		h.logger.Infof("received message: %s", msg.Payload())
 		g := r.FindSubmatch(msg.Payload())
 
 		sendMessage := func(resultMsg string) {
 			time.Sleep(500 * time.Millisecond)
 			result := fmt.Sprintf("%s@%s|%s", g[1], g[2], resultMsg)
 			if resultToken := client.Publish(h.GetCmdExeTopic(), 0, false, result); resultToken.Wait() && resultToken.Error() != nil {
-				h.logger.Errorf("mqtt publish error, topic=%q, %q", h.GetCmdExeTopic(), resultToken.Error())
+				h.logger.Errorf("mqtt publish error, topic=%s, %s", h.GetCmdExeTopic(), resultToken.Error())
 				panic(resultToken.Error())
 			}
-			h.logger.Infof("send message: %q", result)
+			h.logger.Infof("send message: %s", result)
 		}
 
 		if len(g[3]) == 0 {
@@ -101,7 +101,7 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 			return
 		}
 
-		h.logger.Infof("data: %q", data)
+		h.logger.Infof("data: %s", data)
 		var resultMsg string
 		switch string(g[2][:]) {
 		case "apply":
