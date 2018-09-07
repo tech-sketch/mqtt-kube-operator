@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -23,7 +25,7 @@ func newServiceHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogge
 	}
 }
 
-func (h *serviceHandler) apply(rawData runtime.Object) {
+func (h *serviceHandler) apply(rawData runtime.Object) string {
 	service := rawData.(*apiv1.Service)
 	servicesClient := h.kubeClient.CoreV1().Services(apiv1.NamespaceDefault)
 	name := service.ObjectMeta.Name
@@ -38,21 +40,31 @@ func (h *serviceHandler) apply(rawData runtime.Object) {
 			return err
 		})
 		if err != nil {
-			h.logger.Errorf("update service err: %s\n", err.Error())
+			msg := fmt.Sprintf("update service err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("update service %q\n", name)
+		msg := fmt.Sprintf("update service -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := servicesClient.Create(service)
 		if err != nil {
-			h.logger.Errorf("create service err: %s\n", err.Error())
+			msg := fmt.Sprintf("create service err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("create service %q\n", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create service -- %s", result.GetObjectMeta().GetName())
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get service err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get service err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }
 
-func (h *serviceHandler) delete(rawData runtime.Object) {
+func (h *serviceHandler) delete(rawData runtime.Object) string {
 	service := rawData.(*apiv1.Service)
 	servicesClient := h.kubeClient.CoreV1().Services(apiv1.NamespaceDefault)
 	name := service.ObjectMeta.Name
@@ -63,12 +75,20 @@ func (h *serviceHandler) delete(rawData runtime.Object) {
 		if err := servicesClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			h.logger.Errorf("delete service err: %s\n", err.Error())
+			msg := fmt.Sprintf("delete service err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("delete service %q\n", name)
+		msg := fmt.Sprintf("delete service -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
-		h.logger.Infof("service does not exist: %s\n", name)
+		msg := fmt.Sprintf("service does not exist -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get service err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get service err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }

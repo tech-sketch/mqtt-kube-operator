@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -23,7 +25,7 @@ func newSecretHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger
 	}
 }
 
-func (h *secretHandler) apply(rawData runtime.Object) {
+func (h *secretHandler) apply(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name
@@ -39,21 +41,31 @@ func (h *secretHandler) apply(rawData runtime.Object) {
 			return err
 		})
 		if err != nil {
-			h.logger.Errorf("update secret err: %s\n", err.Error())
+			msg := fmt.Sprintf("update secret err: -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("update secret %q\n", name)
+		msg := fmt.Sprintf("update secret -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := secretsClient.Create(secret)
 		if err != nil {
-			h.logger.Errorf("create secret err: %s\n", err.Error())
+			msg := fmt.Sprintf("create secret err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("create secret %q\n", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create secret -- %s", result.GetObjectMeta().GetName())
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get secret err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get secret err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }
 
-func (h *secretHandler) delete(rawData runtime.Object) {
+func (h *secretHandler) delete(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name
@@ -64,12 +76,20 @@ func (h *secretHandler) delete(rawData runtime.Object) {
 		if err := secretsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			h.logger.Errorf("delete secret err: %s\n", err.Error())
+			msg := fmt.Sprintf("delete secret err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("delete secret %q\n", name)
+		msg := fmt.Sprintf("delete secret -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
-		h.logger.Infof("secret does not exist: %s\n", name)
+		msg := fmt.Sprintf("secret does not exist -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get secret err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get secret err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }

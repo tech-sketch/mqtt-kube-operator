@@ -72,40 +72,35 @@ func main() {
 
 	config, err := getKubeConfig()
 	if err != nil {
-		logger.Errorf("getConfig error: %s\n", err.Error())
+		logger.Errorf("getConfig error: %s", err.Error())
 		panic(err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		logger.Errorf("kubernetes.NewForConfig error: %s\n", err.Error())
+		logger.Errorf("kubernetes.NewForConfig error: %s", err.Error())
 		panic(err)
 	}
 
 	opts, err := getMQTTOptions()
 	if err != nil {
-		logger.Errorf("getMQTTOptions error: %s\n", err.Error())
+		logger.Errorf("getMQTTOptions error: %s", err.Error())
 		panic(err)
 	}
 
-	messageHandler := handlers.NewMessageHandler(clientset, logger)
+	cmdTopic := os.Getenv("MQTT_CMD_TOPIC")
+	messageHandler := handlers.NewMessageHandler(clientset, logger, cmdTopic)
 
-	applyTopic := os.Getenv("MQTT_APPLY_TOPIC")
-	deleteTopic := os.Getenv("MQTT_DELETE_TOPIC")
 	opts.OnConnect = func(c mqtt.Client) {
-		if applyToken := c.Subscribe(applyTopic, 0, messageHandler.Apply()); applyToken.Wait() && applyToken.Error() != nil {
-			logger.Errorf("mqtt subscribe error, topic=%s, %s\n", applyTopic, applyToken.Error())
-			panic(err)
-		}
-		if deleteToken := c.Subscribe(deleteTopic, 0, messageHandler.Delete()); deleteToken.Wait() && deleteToken.Error() != nil {
-			logger.Errorf("mqtt subscribe error, topic=%s, %s\n", deleteTopic, deleteToken.Error())
-			panic(err)
+		if cmdToken := c.Subscribe(messageHandler.GetCmdTopic(), 0, messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
+			logger.Errorf("mqtt subscribe error, topic=%s, %s", cmdTopic, cmdToken.Error())
+			panic(cmdToken.Error())
 		}
 	}
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		logger.Errorf("mqtt connect error: %s\n", token.Error())
-		panic(err)
+		logger.Errorf("mqtt connect error: %s", token.Error())
+		panic(token.Error())
 	} else {
 		logger.Infof("Connected to server, start loop")
 	}

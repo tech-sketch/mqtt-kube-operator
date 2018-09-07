@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	"go.uber.org/zap"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -23,7 +25,7 @@ func newConfigmapHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLog
 	}
 }
 
-func (h *configmapHandler) apply(rawData runtime.Object) {
+func (h *configmapHandler) apply(rawData runtime.Object) string {
 	configmap := rawData.(*apiv1.ConfigMap)
 	configmapsClient := h.kubeClient.CoreV1().ConfigMaps(apiv1.NamespaceDefault)
 	name := configmap.ObjectMeta.Name
@@ -38,21 +40,31 @@ func (h *configmapHandler) apply(rawData runtime.Object) {
 			return err
 		})
 		if err != nil {
-			h.logger.Errorf("update configmap err: %s\n", err.Error())
+			msg := fmt.Sprintf("update configmap err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("update configmap %q\n", name)
+		msg := fmt.Sprintf("update configmap -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
 		result, err := configmapsClient.Create(configmap)
 		if err != nil {
-			h.logger.Errorf("create configmap err: %s\n", err.Error())
+			msg := fmt.Sprintf("create configmap err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("create configmap %q\n", result.GetObjectMeta().GetName())
+		msg := fmt.Sprintf("create configmap -- %s", result.GetObjectMeta().GetName())
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get configmap err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get configmap err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }
 
-func (h *configmapHandler) delete(rawData runtime.Object) {
+func (h *configmapHandler) delete(rawData runtime.Object) string {
 	configmap := rawData.(*apiv1.ConfigMap)
 	configmapsClient := h.kubeClient.CoreV1().ConfigMaps(apiv1.NamespaceDefault)
 	name := configmap.ObjectMeta.Name
@@ -63,12 +75,20 @@ func (h *configmapHandler) delete(rawData runtime.Object) {
 		if err := configmapsClient.Delete(name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
-			h.logger.Errorf("delete configmap err: %s\n", err.Error())
+			msg := fmt.Sprintf("delete configmap err -- %s", name)
+			h.logger.Errorf("%s: %s", msg, err.Error())
+			return msg
 		}
-		h.logger.Infof("delete configmap %q\n", name)
+		msg := fmt.Sprintf("delete configmap -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else if errors.IsNotFound(getErr) {
-		h.logger.Infof("configmap does not exist: %s\n", name)
+		msg := fmt.Sprintf("configmap does not exist -- %s", name)
+		h.logger.Infof(msg)
+		return msg
 	} else {
-		h.logger.Errorf("get configmap err: %s\n", getErr.Error())
+		msg := fmt.Sprintf("get configmap err -- %s", name)
+		h.logger.Errorf("%s: %s", msg, getErr.Error())
+		return msg
 	}
 }
