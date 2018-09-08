@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -29,26 +30,35 @@ func getKubeConfig() (*rest.Config, error) {
 }
 
 func getMQTTOptions() (*mqtt.ClientOptions, error) {
+	useTLS, err := strconv.ParseBool(os.Getenv("MQTT_USE_TLS"))
+	if err != nil {
+		useTLS = true
+	}
 	caPath := os.Getenv("MQTT_TLS_CA_PATH")
 	username := os.Getenv("MQTT_USERNAME")
 	password := os.Getenv("MQTT_PASSWORD")
 	host := os.Getenv("MQTT_HOST")
 	port := os.Getenv("MQTT_PORT")
 
-	ca, err := ioutil.ReadFile(caPath)
-	if err != nil {
-		return nil, fmt.Errorf("can not read '%s': %s", caPath, err.Error())
-	}
-
-	rootCA := x509.NewCertPool()
-	if !rootCA.AppendCertsFromPEM(ca) {
-		return nil, fmt.Errorf("failed to parse root certificate: %s", caPath)
-	}
-	tlsConfig := &tls.Config{RootCAs: rootCA}
-
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker(fmt.Sprintf("tls://%s:%s", host, port))
-	opts.SetTLSConfig(tlsConfig)
+
+	if useTLS {
+		ca, err := ioutil.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("can not read '%s': %s", caPath, err.Error())
+		}
+
+		rootCA := x509.NewCertPool()
+		if !rootCA.AppendCertsFromPEM(ca) {
+			return nil, fmt.Errorf("failed to parse root certificate: %s", caPath)
+		}
+		tlsConfig := &tls.Config{RootCAs: rootCA}
+		opts.AddBroker(fmt.Sprintf("tls://%s:%s", host, port))
+		opts.SetTLSConfig(tlsConfig)
+	} else {
+		opts.AddBroker(fmt.Sprintf("tcp://%s:%s", host, port))
+	}
+
 	opts.SetClientID("kube-go")
 	opts.SetCleanSession(true)
 	opts.SetUsername(username)
@@ -102,7 +112,7 @@ func main() {
 		logger.Errorf("mqtt connect error: %s", token.Error())
 		panic(token.Error())
 	} else {
-		logger.Infof("Connected to server, start loop")
+		logger.Infof("Connected to MQTT Broker(%s), start loop", opts.Servers[0].String())
 	}
 	<-c
 	logger.Infof("finish main")

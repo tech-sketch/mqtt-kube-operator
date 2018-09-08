@@ -60,6 +60,11 @@ spec:
             secretKeyRef:
               name: mqtt-username-password
               key: mqtt_password
+        - name: MQTT_USE_TLS
+          valueFrom:
+            configMapKeyRef:
+              name: mqtt-config
+              key: mqtt_use_tls
         - name: MQTT_HOST
           valueFrom:
             configMapKeyRef:
