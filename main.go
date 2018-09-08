@@ -112,7 +112,7 @@ func main() {
 		logger.Errorf("mqtt connect error: %s", token.Error())
 		panic(token.Error())
 	} else {
-		logger.Infof("Connected to server, start loop")
+		logger.Infof("Connected to MQTT Broker(%s), start loop", opts.Servers[0].String())
 	}
 	<-c
 	logger.Infof("finish main")
