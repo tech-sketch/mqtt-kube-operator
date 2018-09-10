@@ -23,6 +23,8 @@ build:
 	$(GOBUILD) -o $(NAME) -v
 test:
 	@echo "---test---"
+	$(GOGET) github.com/stretchr/testify
+	go test ./...
 clean:
 	@echo "---clean---"
 	$(GOCLEAN)
