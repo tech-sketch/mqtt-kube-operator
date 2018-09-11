@@ -6,11 +6,41 @@ import (
 	"os"
 	"testing"
 
+	"go.uber.org/zap"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/tech-sketch/mqtt-kube-operator/handlers"
+	"github.com/tech-sketch/mqtt-kube-operator/mock"
 )
 
-func TestGetMQTTOptions(t *testing.T) {
+func setUpMocks(t *testing.T) (*executer, *mock.MockClient, *mock.MockToken, func()) {
+	ctrl := gomock.NewController(t)
+
+	loggerConfig := zap.NewProductionConfig()
+	loggerConfig.Level = zap.NewAtomicLevelAt(zap.FatalLevel)
+	logger, _ := loggerConfig.Build()
+
+	client := mock.NewMockClient(ctrl)
+	token := mock.NewMockToken(ctrl)
+
+	exec := &executer{
+		logger: logger.Sugar(),
+		client: client,
+	}
+	return exec, client, token, func() {
+		logger.Sync()
+		ctrl.Finish()
+	}
+}
+
+func TestSetMQTTOptions(t *testing.T) {
 	assert := assert.New(t)
+	exec, client, token, tearDown := setUpMocks(t)
+	defer tearDown()
 
 	useTLSCases := []struct {
 		mqttUseTLS string
@@ -61,11 +91,11 @@ func TestGetMQTTOptions(t *testing.T) {
 					os.Setenv("MQTT_PASSWORD", configCase.password)
 					defer os.Unsetenv("MQTT_PASSWORD")
 				}
-
-				opts, err := getMQTTOptions()
+				exec.opts = mqtt.NewClientOptions()
+				err := exec.setMQTTOptions()
 
 				assert.Nil(err)
-				assert.NotNil(opts)
+				assert.NotNil(exec.opts)
 
 				username := ""
 				if configCase.username != "nil" {
@@ -84,20 +114,24 @@ func TestGetMQTTOptions(t *testing.T) {
 					port = configCase.port
 				}
 
-				assert.Equal(username, opts.Username)
-				assert.Equal(password, opts.Password)
+				assert.Equal(username, exec.opts.Username)
+				assert.Equal(password, exec.opts.Password)
 
 				if useTLSCase.mqttUseTLS == "false" || useTLSCase.mqttUseTLS == "False" {
-					assert.Equal(1, len(opts.Servers))
+					assert.Equal(1, len(exec.opts.Servers))
 					url, _ := url.Parse(fmt.Sprintf("tcp://%s:%s", host, port))
-					assert.Equal(url, opts.Servers[0])
-					assert.Nil(opts.TLSConfig.RootCAs)
+					assert.Equal(url, exec.opts.Servers[0])
+					assert.Nil(exec.opts.TLSConfig.RootCAs)
 				} else {
-					assert.Equal(1, len(opts.Servers))
+					assert.Equal(1, len(exec.opts.Servers))
 					url, _ := url.Parse(fmt.Sprintf("tls://%s:%s", host, port))
-					assert.Equal(url, opts.Servers[0])
-					assert.NotNil(opts.TLSConfig.RootCAs)
+					assert.Equal(url, exec.opts.Servers[0])
+					assert.NotNil(exec.opts.TLSConfig.RootCAs)
 				}
+
+				client.EXPECT().Connect().Times(0)
+				client.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				token.EXPECT().Wait().Times(0)
 			})
 		}
 	}
@@ -105,6 +139,8 @@ func TestGetMQTTOptions(t *testing.T) {
 
 func TestGetMQTTOptionsError(t *testing.T) {
 	assert := assert.New(t)
+	exec, client, token, tearDown := setUpMocks(t)
+	defer tearDown()
 
 	caCases := []struct {
 		caPath string
@@ -127,8 +163,8 @@ func TestGetMQTTOptionsError(t *testing.T) {
 			os.Setenv("MQTT_PORT", "8883")
 			defer os.Unsetenv("MQTT_PORT")
 
-			opts, err := getMQTTOptions()
-			assert.Nil(opts)
+			exec.opts = mqtt.NewClientOptions()
+			err := exec.setMQTTOptions()
 			assert.NotNil(err)
 
 			switch caCase.caPath {
@@ -139,6 +175,38 @@ func TestGetMQTTOptionsError(t *testing.T) {
 			case "./main.go":
 				assert.Equal("failed to parse root certificate: ./main.go", err.Error())
 			}
+
+			client.EXPECT().Connect().Times(0)
+			client.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			token.EXPECT().Wait().Times(0)
 		})
 	}
+}
+
+func TestHandle(t *testing.T) {
+	assert := assert.New(t)
+	exec, client, token, tearDown := setUpMocks(t)
+	defer tearDown()
+
+	exec.opts = mqtt.NewClientOptions()
+	exec.opts.AddBroker("tcp://mqtt.example.com:1883")
+
+	client.EXPECT().Connect().Return(token)
+	token.EXPECT().Wait().Return(false)
+
+	msg := handle(exec)
+	assert.Equal("Connected to MQTT Broker(tcp://mqtt.example.com:1883), start loop", msg)
+}
+
+func TestOnConnect(t *testing.T) {
+	exec, client, token, tearDown := setUpMocks(t)
+	defer tearDown()
+
+	exec.messageHandler = handlers.NewMessageHandler(nil, exec.logger, "/test")
+
+	client.EXPECT().Subscribe("/test/cmd", byte(0), gomock.Any()).Return(token)
+	token.EXPECT().Wait().Return(true)
+	token.EXPECT().Error().Return(nil)
+
+	exec.onConnect(client)
 }
