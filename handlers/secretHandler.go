@@ -25,7 +25,7 @@ func newSecretHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger
 	}
 }
 
-func (h *secretHandler) apply(rawData runtime.Object) string {
+func (h *secretHandler) Apply(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name
@@ -65,7 +65,7 @@ func (h *secretHandler) apply(rawData runtime.Object) string {
 	}
 }
 
-func (h *secretHandler) delete(rawData runtime.Object) string {
+func (h *secretHandler) Delete(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name

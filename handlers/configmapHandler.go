@@ -25,7 +25,7 @@ func newConfigmapHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLog
 	}
 }
 
-func (h *configmapHandler) apply(rawData runtime.Object) string {
+func (h *configmapHandler) Apply(rawData runtime.Object) string {
 	configmap := rawData.(*apiv1.ConfigMap)
 	configmapsClient := h.kubeClient.CoreV1().ConfigMaps(apiv1.NamespaceDefault)
 	name := configmap.ObjectMeta.Name
@@ -64,7 +64,7 @@ func (h *configmapHandler) apply(rawData runtime.Object) string {
 	}
 }
 
-func (h *configmapHandler) delete(rawData runtime.Object) string {
+func (h *configmapHandler) Delete(rawData runtime.Object) string {
 	configmap := rawData.(*apiv1.ConfigMap)
 	configmapsClient := h.kubeClient.CoreV1().ConfigMaps(apiv1.NamespaceDefault)
 	name := configmap.ObjectMeta.Name

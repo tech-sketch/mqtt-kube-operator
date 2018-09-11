@@ -43,22 +43,24 @@ func (h handlerType) String() string {
 }
 
 type MessageHandler struct {
-	logger     *zap.SugaredLogger
-	cmdTopic   string
-	deployment *deploymentHandler
-	service    *serviceHandler
-	configmap  *configmapHandler
-	secret     *secretHandler
+	logger           *zap.SugaredLogger
+	cmdTopic         string
+	deployment       HandlerInf
+	service          HandlerInf
+	configmap        HandlerInf
+	secret           HandlerInf
+	sleepMillisecond int
 }
 
 func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger, cmdTopic string) *MessageHandler {
 	return &MessageHandler{
-		logger:     logger,
-		cmdTopic:   cmdTopic,
-		deployment: newDeploymentHandler(clientset, logger),
-		service:    newServiceHandler(clientset, logger),
-		configmap:  newConfigmapHandler(clientset, logger),
-		secret:     newSecretHandler(clientset, logger),
+		logger:           logger,
+		cmdTopic:         cmdTopic,
+		deployment:       newDeploymentHandler(clientset, logger),
+		service:          newServiceHandler(clientset, logger),
+		configmap:        newConfigmapHandler(clientset, logger),
+		secret:           newSecretHandler(clientset, logger),
+		sleepMillisecond: 500,
 	}
 }
 
@@ -72,19 +74,29 @@ func (h *MessageHandler) GetCmdExeTopic() string {
 
 func (h *MessageHandler) Command() mqtt.MessageHandler {
 	r := regexp.MustCompile(`^([\w\-]+)@([\w\-]+)\|(.*)$`)
+	publish := func(client mqtt.Client, payload string) {
+		time.Sleep(time.Duration(h.sleepMillisecond) * time.Millisecond)
+		if resultToken := client.Publish(h.GetCmdExeTopic(), 0, false, payload); resultToken.Wait() && resultToken.Error() != nil {
+			h.logger.Errorf("mqtt publish error, topic=%s, %s", h.GetCmdExeTopic(), resultToken.Error())
+			panic(resultToken.Error())
+		}
+		h.logger.Infof("send message: %s", payload)
+	}
 
 	return func(client mqtt.Client, msg mqtt.Message) {
-		h.logger.Infof("received message: %s", msg.Payload())
-		g := r.FindSubmatch(msg.Payload())
+		payload := msg.Payload()
+		h.logger.Infof("received message: %s", payload)
+
+		g := r.FindSubmatch(payload)
+
+		if len(g) != 4 {
+			publish(client, "invalid payload")
+			return
+		}
 
 		sendMessage := func(resultMsg string) {
-			time.Sleep(500 * time.Millisecond)
 			result := fmt.Sprintf("%s@%s|%s", g[1], g[2], resultMsg)
-			if resultToken := client.Publish(h.GetCmdExeTopic(), 0, false, result); resultToken.Wait() && resultToken.Error() != nil {
-				h.logger.Errorf("mqtt publish error, topic=%s, %s", h.GetCmdExeTopic(), resultToken.Error())
-				panic(resultToken.Error())
-			}
-			h.logger.Infof("send message: %s", result)
+			publish(client, result)
 		}
 
 		if len(g[3]) == 0 {
@@ -106,18 +118,18 @@ func (h *MessageHandler) Command() mqtt.MessageHandler {
 		switch string(g[2][:]) {
 		case "apply":
 			operations := map[handlerType]func(runtime.Object) string{
-				deploymentType: h.deployment.apply,
-				serviceType:    h.service.apply,
-				configmapType:  h.configmap.apply,
-				secretType:     h.secret.apply,
+				deploymentType: h.deployment.Apply,
+				serviceType:    h.service.Apply,
+				configmapType:  h.configmap.Apply,
+				secretType:     h.secret.Apply,
 			}
 			resultMsg = h.operate(operations, data)
 		case "delete":
 			operations := map[handlerType]func(runtime.Object) string{
-				deploymentType: h.deployment.delete,
-				serviceType:    h.service.delete,
-				configmapType:  h.configmap.delete,
-				secretType:     h.secret.delete,
+				deploymentType: h.deployment.Delete,
+				serviceType:    h.service.Delete,
+				configmapType:  h.configmap.Delete,
+				secretType:     h.secret.Delete,
 			}
 			resultMsg = h.operate(operations, data)
 		default:
@@ -131,7 +143,7 @@ func (h *MessageHandler) operate(operations map[handlerType]func(rawData runtime
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	rawData, _, err := decode([]byte(data), nil, nil)
 	if err != nil {
-		msg := "ignore format, skip this message"
+		msg := "invalid format, skip this message"
 		h.logger.Infof("%s: %s", msg, err.Error())
 		return msg
 	}
@@ -146,7 +158,7 @@ func (h *MessageHandler) operate(operations map[handlerType]func(rawData runtime
 	case *apiv1.Secret:
 		return operations[secretType](rawData)
 	default:
-		msg := "unknown format, skip this message"
+		msg := "unknown type, skip this message"
 		h.logger.Infof(msg)
 		return msg
 	}
