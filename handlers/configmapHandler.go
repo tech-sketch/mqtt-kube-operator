@@ -14,7 +14,7 @@ import (
 )
 
 type configmapHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 

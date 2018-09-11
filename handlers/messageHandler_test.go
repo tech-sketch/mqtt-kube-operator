@@ -21,7 +21,7 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/mock"
 )
 
-func setUp(t *testing.T, cmdTopic string) (*MessageHandler, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockClient, *mock.MockMessage, *mock.MockToken, func()) {
+func setUpMocks(t *testing.T, cmdTopic string) (*MessageHandler, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockClient, *mock.MockMessage, *mock.MockToken, func()) {
 	ctrl := gomock.NewController(t)
 
 	loggerConfig := zap.NewProductionConfig()
@@ -75,7 +75,7 @@ func TestGetTopic(t *testing.T) {
 }
 
 func TestCommandInvalidPayload(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payloadCases := []struct {
@@ -117,7 +117,7 @@ func TestCommandInvalidPayload(t *testing.T) {
 }
 
 func TestDeployment(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/deployment.yaml")
@@ -156,7 +156,7 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestService(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/service.yaml")
@@ -195,7 +195,7 @@ func TestService(t *testing.T) {
 }
 
 func TestConfigmap(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/configmap.yaml")
@@ -234,7 +234,7 @@ func TestConfigmap(t *testing.T) {
 }
 
 func TestSecret(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/secret.yaml")
@@ -273,7 +273,7 @@ func TestSecret(t *testing.T) {
 }
 
 func TestUnknownType(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUp(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
 	defer tearDown()
 
 	payload, _ := getPayloadFromFixture(t, "../testdata/namespace.yaml")

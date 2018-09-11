@@ -27,6 +27,8 @@ test:
 	$(GOGET) github.com/golang/mock/gomock
 	$(GOGET) github.com/golang/mock/mockgen
 	$(GOGET) github.com/ghodss/yaml
+	mockgen -destination mock/mock_clientset.go -package mock k8s.io/client-go/kubernetes Interface
+	mockgen -destination mock/mock_corev1.go -package mock k8s.io/client-go/kubernetes/typed/core/v1 CoreV1Interface,ConfigMapInterface
 	mockgen -destination mock/mock_mqtt.go -package mock github.com/eclipse/paho.mqtt.golang Client,Message,Token
 	mockgen -destination mock/mock_handler.go -package mock -source handlers/interfaces.go
 	go test ./...
