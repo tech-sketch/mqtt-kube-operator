@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	apiv1 "k8s.io/api/core/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,7 +17,7 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/mock"
 )
 
-func setUpConfigmapHandler(t *testing.T) (*configmapHandler, *mock.MockConfigMapInterface, runtime.Object, *apiv1.ConfigMap, string, func()) {
+func setUpDeploymentHandler(t *testing.T) (*deploymentHandler, *mock.MockDeploymentInterface, runtime.Object, *appsv1.Deployment, string, func()) {
 	ctrl := gomock.NewController(t)
 
 	loggerConfig := zap.NewProductionConfig()
@@ -25,36 +25,36 @@ func setUpConfigmapHandler(t *testing.T) (*configmapHandler, *mock.MockConfigMap
 	logger, _ := loggerConfig.Build()
 
 	clientset := mock.NewMockInterface(ctrl)
-	corev1 := mock.NewMockCoreV1Interface(ctrl)
-	configmap := mock.NewMockConfigMapInterface(ctrl)
-	clientset.EXPECT().CoreV1().Return(corev1).AnyTimes()
-	corev1.EXPECT().ConfigMaps(gomock.Any()).Return(configmap).AnyTimes()
+	mappsv1 := mock.NewMockAppsV1Interface(ctrl)
+	deployment := mock.NewMockDeploymentInterface(ctrl)
+	clientset.EXPECT().AppsV1().Return(mappsv1).AnyTimes()
+	mappsv1.EXPECT().Deployments(gomock.Any()).Return(deployment).AnyTimes()
 
-	handler := &configmapHandler{
+	handler := &deploymentHandler{
 		kubeClient: clientset,
 		logger:     logger.Sugar(),
 	}
 
-	_, rawData := getPayloadFromFixture(t, "../testdata/configmap.yaml")
-	obj, ok := rawData.(*apiv1.ConfigMap)
+	_, rawData := getPayloadFromFixture(t, "../testdata/deployment.yaml")
+	obj, ok := rawData.(*appsv1.Deployment)
 	if !ok {
 		t.Fatal(ok)
 	}
 
-	name := "my-configmap"
+	name := "my-deployment"
 
-	return handler, configmap, rawData, obj, name, func() {
+	return handler, deployment, rawData, obj, name, func() {
 		logger.Sync()
 		ctrl.Finish()
 	}
 }
 
-func TestConfigMapCreate(t *testing.T) {
+func TestDeploymentCreate(t *testing.T) {
 	assert := assert.New(t)
-	handler, client, rawData, obj, name, tearDown := setUpConfigmapHandler(t)
+	handler, client, rawData, obj, name, tearDown := setUpDeploymentHandler(t)
 	defer tearDown()
 
-	getErr := errors.NewNotFound(apiv1.Resource("configmap"), name)
+	getErr := errors.NewNotFound(appsv1.Resource("deployment"), name)
 
 	t.Run("success", func(t *testing.T) {
 		client.EXPECT().Get(name, metav1.GetOptions{}).Return(nil, getErr)
@@ -63,7 +63,7 @@ func TestConfigMapCreate(t *testing.T) {
 		client.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
 		result := handler.Apply(rawData)
-		assert.Equal(fmt.Sprintf("create configmap -- %s", name), result)
+		assert.Equal(fmt.Sprintf("create deployment -- %s", name), result)
 	})
 	t.Run("failure", func(t *testing.T) {
 		client.EXPECT().Get(name, metav1.GetOptions{}).Return(nil, getErr)
@@ -72,16 +72,16 @@ func TestConfigMapCreate(t *testing.T) {
 		client.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
 		result := handler.Apply(rawData)
-		assert.Equal(fmt.Sprintf("create configmap err -- %s", name), result)
+		assert.Equal(fmt.Sprintf("create deployment err -- %s", name), result)
 	})
 }
 
-func TestConfigMapUpdate(t *testing.T) {
+func TestDeploymentUpdate(t *testing.T) {
 	assert := assert.New(t)
-	handler, client, rawData, obj, name, tearDown := setUpConfigmapHandler(t)
+	handler, client, rawData, obj, name, tearDown := setUpDeploymentHandler(t)
 	defer tearDown()
 
-	prev := rawData.(*apiv1.ConfigMap)
+	prev := rawData.(*appsv1.Deployment)
 	prev.ObjectMeta.Labels["test"] = "test"
 
 	t.Run("success", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestConfigMapUpdate(t *testing.T) {
 		client.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
 		result := handler.Apply(rawData)
-		assert.Equal(fmt.Sprintf("update configmap -- %s", name), result)
+		assert.Equal(fmt.Sprintf("update deployment -- %s", name), result)
 	})
 	t.Run("failure", func(t *testing.T) {
 		client.EXPECT().Get(name, metav1.GetOptions{}).Return(prev, nil)
@@ -100,13 +100,13 @@ func TestConfigMapUpdate(t *testing.T) {
 		client.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
 		result := handler.Apply(rawData)
-		assert.Equal(fmt.Sprintf("update configmap err -- %s", name), result)
+		assert.Equal(fmt.Sprintf("update deployment err -- %s", name), result)
 	})
 }
 
-func TestConfigMapApplyGetErr(t *testing.T) {
+func TestDeploymentApplyGetErr(t *testing.T) {
 	assert := assert.New(t)
-	handler, client, rawData, _, name, tearDown := setUpConfigmapHandler(t)
+	handler, client, rawData, _, name, tearDown := setUpDeploymentHandler(t)
 	defer tearDown()
 
 	client.EXPECT().Get(name, metav1.GetOptions{}).Return(nil, fmt.Errorf("getErr"))
@@ -115,12 +115,12 @@ func TestConfigMapApplyGetErr(t *testing.T) {
 	client.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
 	result := handler.Apply(rawData)
-	assert.Equal(fmt.Sprintf("get configmap err -- %s", name), result)
+	assert.Equal(fmt.Sprintf("get deployment err -- %s", name), result)
 }
 
-func TestConfigMapDelete(t *testing.T) {
+func TestDeploymentDelete(t *testing.T) {
 	assert := assert.New(t)
-	handler, client, rawData, obj, name, tearDown := setUpConfigmapHandler(t)
+	handler, client, rawData, obj, name, tearDown := setUpDeploymentHandler(t)
 	defer tearDown()
 
 	deletePolicy := metav1.DeletePropagationForeground
@@ -132,7 +132,7 @@ func TestConfigMapDelete(t *testing.T) {
 		client.EXPECT().Delete(name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy}).Return(nil)
 
 		result := handler.Delete(rawData)
-		assert.Equal(fmt.Sprintf("delete configmap -- %s", name), result)
+		assert.Equal(fmt.Sprintf("delete deployment -- %s", name), result)
 	})
 	t.Run("failure", func(t *testing.T) {
 		client.EXPECT().Get(name, metav1.GetOptions{}).Return(obj, nil)
@@ -141,13 +141,13 @@ func TestConfigMapDelete(t *testing.T) {
 		client.EXPECT().Delete(name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy}).Return(fmt.Errorf("failure"))
 
 		result := handler.Delete(rawData)
-		assert.Equal(fmt.Sprintf("delete configmap err -- %s", name), result)
+		assert.Equal(fmt.Sprintf("delete deployment err -- %s", name), result)
 	})
 }
 
-func TestConfigMapDeleteError(t *testing.T) {
+func TestDeploymentDeleteError(t *testing.T) {
 	assert := assert.New(t)
-	handler, client, rawData, _, name, tearDown := setUpConfigmapHandler(t)
+	handler, client, rawData, _, name, tearDown := setUpDeploymentHandler(t)
 	defer tearDown()
 
 	errCases := []struct {
@@ -155,8 +155,8 @@ func TestConfigMapDeleteError(t *testing.T) {
 		err  error
 		msg  string
 	}{
-		{name: "notfound", err: errors.NewNotFound(apiv1.Resource("configmap"), name), msg: "configmap does not exist"},
-		{name: "othererr", err: fmt.Errorf("failure"), msg: "get configmap err"},
+		{name: "notfound", err: errors.NewNotFound(appsv1.Resource("deployment"), name), msg: "deployment does not exist"},
+		{name: "othererr", err: fmt.Errorf("failure"), msg: "get deployment err"},
 	}
 
 	for _, c := range errCases {

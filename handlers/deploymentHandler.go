@@ -15,7 +15,7 @@ import (
 )
 
 type deploymentHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
@@ -80,7 +80,7 @@ func (h *deploymentHandler) Delete(rawData runtime.Object) string {
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete deployment %s", name)
+		msg := fmt.Sprintf("delete deployment -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {
