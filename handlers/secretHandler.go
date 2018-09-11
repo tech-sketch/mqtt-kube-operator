@@ -14,7 +14,7 @@ import (
 )
 
 type secretHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
@@ -41,7 +41,7 @@ func (h *secretHandler) Apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update secret err: -- %s", name)
+			msg := fmt.Sprintf("update secret err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}

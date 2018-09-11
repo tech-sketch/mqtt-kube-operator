@@ -14,7 +14,7 @@ import (
 )
 
 type serviceHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
