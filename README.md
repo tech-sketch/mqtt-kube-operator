@@ -1,6 +1,9 @@
 # mqtt-kube-operator
 Deploy a resource to remote Kubernetes using MQTT
 
+[![TravisCI Status](https://travis-ci.org/tech-sketch/mqtt-kube-operator.svg?branch=master)](https://travis-ci.org/tech-sketch/mqtt-kube-operator)
+[![DockerHub Status](https://dockerbuildbadges.quelltext.eu/status.svg?organization=techsketch&repository=mqtt-kube-operator)](https://hub.docker.com/r/techsketch/mqtt-kube-operator/builds/)
+
 ## Description
 When this container is deployed a Kubernetes cluster, the container subscribes two MQTT topics.  
 When a json string is received from subscribed topic, this container create / update / delete a Resource to its own Kubernetes.
