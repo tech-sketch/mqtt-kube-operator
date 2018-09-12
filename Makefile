@@ -12,26 +12,30 @@ CONTAINER_BINARY=docker_$(NAME)
 CONTAINER_IMAGE=techsketch/$(NAME)
 
 
-all: deps test cross-compile docker-build
+all: clean deps test cross-compile docker-build
 deps:
 	@echo "---deps---"
 	$(GOGET) k8s.io/client-go/...
 	$(GOGET) github.com/eclipse/paho.mqtt.golang
 	$(GOGET) go.uber.org/zap
-build:
-	@echo "---build---"
-	$(GOBUILD) -o $(NAME) -v
-test:
-	@echo "---test---"
+test-deps:
+	@echo "---test-deps---"
 	$(GOGET) github.com/stretchr/testify
 	$(GOGET) github.com/golang/mock/gomock
 	$(GOGET) github.com/golang/mock/mockgen
 	$(GOGET) github.com/ghodss/yaml
+mock-gen:
+	@echo "---mock-gen---"
 	mockgen -destination mock/mock_clientset.go -package mock k8s.io/client-go/kubernetes Interface
 	mockgen -destination mock/mock_corev1.go -package mock k8s.io/client-go/kubernetes/typed/core/v1 CoreV1Interface,ConfigMapInterface,SecretInterface,ServiceInterface
 	mockgen -destination mock/mock_appsv1.go -package mock k8s.io/client-go/kubernetes/typed/apps/v1 AppsV1Interface,DeploymentInterface
 	mockgen -destination mock/mock_mqtt.go -package mock github.com/eclipse/paho.mqtt.golang Client,Message,Token
 	mockgen -destination mock/mock_handler.go -package mock -source handlers/interfaces.go
+build:
+	@echo "---build---"
+	$(GOBUILD) -o $(NAME) -v
+test: test-deps mock-gen
+	@echo "---test---"
 	go vet ./...
 	golint ./...
 	go test ./...

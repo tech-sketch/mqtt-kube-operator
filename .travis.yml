@@ -1,0 +1,13 @@
+language: go
+sudo: false
+go:
+  - "1.9.x"
+  - "1.10.x"
+  - "1.11.x"
+  - master
+install:
+  - make deps test-deps mock-gen
+script:
+  - go vet ./...
+  - diff <(golint ./... | grep -v vendor/) <(printf "")
+  - go test ./...
