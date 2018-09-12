@@ -1,3 +1,8 @@
+/*
+Package main : entry point of mqtt-kube-operator.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package main
 
 import (

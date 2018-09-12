@@ -32,13 +32,15 @@ test:
 	mockgen -destination mock/mock_appsv1.go -package mock k8s.io/client-go/kubernetes/typed/apps/v1 AppsV1Interface,DeploymentInterface
 	mockgen -destination mock/mock_mqtt.go -package mock github.com/eclipse/paho.mqtt.golang Client,Message,Token
 	mockgen -destination mock/mock_handler.go -package mock -source handlers/interfaces.go
+	go vet ./...
+	golint ./...
 	go test ./...
 clean:
 	@echo "---clean---"
 	$(GOCLEAN)
 	rm -f $(NAME)
 	rm -f $(CONTAINER_BINARY)
-	rm -rf mock
+	rm -rf mock/*.go
 run:
 	@echo "---run---"
 	@echo "MQTT_USE_TLS=${MQTT_USE_TLS}"

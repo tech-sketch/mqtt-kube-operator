@@ -1,3 +1,8 @@
+/*
+Package handlers : handle MQTT message and deploy object to kubernetes.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package handlers
 
 import (
@@ -42,6 +47,9 @@ func (h handlerType) String() string {
 	}
 }
 
+/*
+MessageHandler : a struct handling object handlers to deploy an object generated from MQTT message.
+*/
 type MessageHandler struct {
 	logger           *zap.SugaredLogger
 	cmdTopic         string
@@ -52,6 +60,9 @@ type MessageHandler struct {
 	sleepMillisecond int
 }
 
+/*
+NewMessageHandler : a factory method to create MessageHandler.
+*/
 func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger, cmdTopic string) *MessageHandler {
 	return &MessageHandler{
 		logger:           logger,
@@ -64,14 +75,23 @@ func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogge
 	}
 }
 
+/*
+GetCmdTopic : get the command topic name
+*/
 func (h *MessageHandler) GetCmdTopic() string {
 	return h.cmdTopic + "/cmd"
 }
 
+/*
+GetCmdExeTopic : get the command result topic name
+*/
 func (h *MessageHandler) GetCmdExeTopic() string {
 	return h.cmdTopic + "/cmdexe"
 }
 
+/*
+Command : a method which return a function called when receiving a new MQTT message.
+*/
 func (h *MessageHandler) Command() mqtt.MessageHandler {
 	r := regexp.MustCompile(`^([\w\-]+)@([\w\-]+)\|(.*)$`)
 	publish := func(client mqtt.Client, payload string) {
