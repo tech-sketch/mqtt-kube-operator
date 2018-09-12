@@ -24,6 +24,7 @@ test-deps:
 	$(GOGET) github.com/golang/mock/gomock
 	$(GOGET) github.com/golang/mock/mockgen
 	$(GOGET) github.com/ghodss/yaml
+	$(GOGET) github.com/golang/lint/golint
 mock-gen:
 	@echo "---mock-gen---"
 	mockgen -destination mock/mock_clientset.go -package mock k8s.io/client-go/kubernetes Interface
