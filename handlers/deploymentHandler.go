@@ -1,3 +1,8 @@
+/*
+Package handlers : handle MQTT message and deploy object to kubernetes.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package handlers
 
 import (
@@ -15,7 +20,7 @@ import (
 )
 
 type deploymentHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
@@ -26,7 +31,7 @@ func newDeploymentHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLo
 	}
 }
 
-func (h *deploymentHandler) apply(rawData runtime.Object) string {
+func (h *deploymentHandler) Apply(rawData runtime.Object) string {
 	deployment := rawData.(*appsv1.Deployment)
 	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
 	name := deployment.ObjectMeta.Name
@@ -65,7 +70,7 @@ func (h *deploymentHandler) apply(rawData runtime.Object) string {
 	}
 }
 
-func (h *deploymentHandler) delete(rawData runtime.Object) string {
+func (h *deploymentHandler) Delete(rawData runtime.Object) string {
 	deployment := rawData.(*appsv1.Deployment)
 	deploymentsClient := h.kubeClient.AppsV1().Deployments(apiv1.NamespaceDefault)
 	name := deployment.ObjectMeta.Name
@@ -80,7 +85,7 @@ func (h *deploymentHandler) delete(rawData runtime.Object) string {
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
-		msg := fmt.Sprintf("delete deployment %s", name)
+		msg := fmt.Sprintf("delete deployment -- %s", name)
 		h.logger.Infof(msg)
 		return msg
 	} else if errors.IsNotFound(getErr) {

@@ -1,3 +1,8 @@
+/*
+Package handlers : handle MQTT message and deploy object to kubernetes.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package handlers
 
 import (
@@ -14,7 +19,7 @@ import (
 )
 
 type serviceHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
@@ -25,7 +30,7 @@ func newServiceHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogge
 	}
 }
 
-func (h *serviceHandler) apply(rawData runtime.Object) string {
+func (h *serviceHandler) Apply(rawData runtime.Object) string {
 	service := rawData.(*apiv1.Service)
 	servicesClient := h.kubeClient.CoreV1().Services(apiv1.NamespaceDefault)
 	name := service.ObjectMeta.Name
@@ -64,7 +69,7 @@ func (h *serviceHandler) apply(rawData runtime.Object) string {
 	}
 }
 
-func (h *serviceHandler) delete(rawData runtime.Object) string {
+func (h *serviceHandler) Delete(rawData runtime.Object) string {
 	service := rawData.(*apiv1.Service)
 	servicesClient := h.kubeClient.CoreV1().Services(apiv1.NamespaceDefault)
 	name := service.ObjectMeta.Name

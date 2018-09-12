@@ -1,3 +1,8 @@
+/*
+Package main : entry point of mqtt-kube-operator.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package main
 
 import (
@@ -21,7 +26,39 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/handlers"
 )
 
-func getKubeConfig() (*rest.Config, error) {
+type executer struct {
+	logger         *zap.SugaredLogger
+	opts           *mqtt.ClientOptions
+	cmdTopic       string
+	messageHandler *handlers.MessageHandler
+	client         mqtt.Client
+}
+
+func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
+	e := &executer{
+		logger:   logger,
+		opts:     mqtt.NewClientOptions(),
+		cmdTopic: os.Getenv("MQTT_CMD_TOPIC"),
+	}
+	config, err := e.getKubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	e.messageHandler = handlers.NewMessageHandler(clientset, logger, e.cmdTopic)
+
+	if err := e.setMQTTOptions(); err != nil {
+		return nil, err
+	}
+	e.opts.OnConnect = e.onConnect
+	e.client = mqtt.NewClient(e.opts)
+	return e, nil
+}
+
+func (e *executer) getKubeConfig() (*rest.Config, error) {
 	kubeConfigPath := os.Getenv("KUBE_CONF_PATH")
 	if kubeConfigPath != "" {
 		return clientcmd.BuildConfigFromFlags("", kubeConfigPath)
@@ -29,7 +66,7 @@ func getKubeConfig() (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
-func getMQTTOptions() (*mqtt.ClientOptions, error) {
+func (e *executer) setMQTTOptions() error {
 	useTLS, err := strconv.ParseBool(os.Getenv("MQTT_USE_TLS"))
 	if err != nil {
 		useTLS = true
@@ -40,31 +77,48 @@ func getMQTTOptions() (*mqtt.ClientOptions, error) {
 	host := os.Getenv("MQTT_HOST")
 	port := os.Getenv("MQTT_PORT")
 
-	opts := mqtt.NewClientOptions()
-
 	if useTLS {
 		ca, err := ioutil.ReadFile(caPath)
 		if err != nil {
-			return nil, fmt.Errorf("can not read '%s': %s", caPath, err.Error())
+			return fmt.Errorf("can not read '%s': %s", caPath, err.Error())
 		}
 
 		rootCA := x509.NewCertPool()
 		if !rootCA.AppendCertsFromPEM(ca) {
-			return nil, fmt.Errorf("failed to parse root certificate: %s", caPath)
+			return fmt.Errorf("failed to parse root certificate: %s", caPath)
 		}
 		tlsConfig := &tls.Config{RootCAs: rootCA}
-		opts.AddBroker(fmt.Sprintf("tls://%s:%s", host, port))
-		opts.SetTLSConfig(tlsConfig)
+		e.opts.AddBroker(fmt.Sprintf("tls://%s:%s", host, port))
+		e.opts.SetTLSConfig(tlsConfig)
 	} else {
-		opts.AddBroker(fmt.Sprintf("tcp://%s:%s", host, port))
+		e.opts.AddBroker(fmt.Sprintf("tcp://%s:%s", host, port))
 	}
 
-	opts.SetClientID("kube-go")
-	opts.SetCleanSession(true)
-	opts.SetUsername(username)
-	opts.SetPassword(password)
+	e.opts.SetClientID("kube-go")
+	e.opts.SetCleanSession(true)
+	e.opts.SetUsername(username)
+	e.opts.SetPassword(password)
 
-	return opts, nil
+	return nil
+}
+
+func (e *executer) onConnect(c mqtt.Client) {
+	if cmdToken := c.Subscribe(e.messageHandler.GetCmdTopic(), 0, e.messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
+		e.logger.Errorf("mqtt subscribe error, topic=%s, %s", e.cmdTopic, cmdToken.Error())
+		panic(cmdToken.Error())
+	}
+}
+
+func handle(e *executer) string {
+	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
+		msg := fmt.Sprintf("mqtt connect error: %s", token.Error())
+		e.logger.Errorf(msg)
+		panic(token.Error())
+	} else {
+		msg := fmt.Sprintf("Connected to MQTT Broker(%s), start loop", e.opts.Servers[0].String())
+		e.logger.Infof(msg)
+		return msg
+	}
 }
 
 func main() {
@@ -80,40 +134,13 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	config, err := getKubeConfig()
+	exec, err := newExecuter(logger)
 	if err != nil {
-		logger.Errorf("getConfig error: %s", err.Error())
+		logger.Errorf("executer error: %s", err.Error())
 		panic(err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		logger.Errorf("kubernetes.NewForConfig error: %s", err.Error())
-		panic(err)
-	}
-
-	opts, err := getMQTTOptions()
-	if err != nil {
-		logger.Errorf("getMQTTOptions error: %s", err.Error())
-		panic(err)
-	}
-
-	cmdTopic := os.Getenv("MQTT_CMD_TOPIC")
-	messageHandler := handlers.NewMessageHandler(clientset, logger, cmdTopic)
-
-	opts.OnConnect = func(c mqtt.Client) {
-		if cmdToken := c.Subscribe(messageHandler.GetCmdTopic(), 0, messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
-			logger.Errorf("mqtt subscribe error, topic=%s, %s", cmdTopic, cmdToken.Error())
-			panic(cmdToken.Error())
-		}
-	}
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		logger.Errorf("mqtt connect error: %s", token.Error())
-		panic(token.Error())
-	} else {
-		logger.Infof("Connected to MQTT Broker(%s), start loop", opts.Servers[0].String())
-	}
+	handle(exec)
 	<-c
 	logger.Infof("finish main")
 }

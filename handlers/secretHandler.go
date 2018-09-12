@@ -1,3 +1,8 @@
+/*
+Package handlers : handle MQTT message and deploy object to kubernetes.
+	license: Apache license 2.0
+	copyright: Nobuyuki Matsui <nobuyuki.matsui@gmail.com>
+*/
 package handlers
 
 import (
@@ -14,7 +19,7 @@ import (
 )
 
 type secretHandler struct {
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 	logger     *zap.SugaredLogger
 }
 
@@ -25,7 +30,7 @@ func newSecretHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger
 	}
 }
 
-func (h *secretHandler) apply(rawData runtime.Object) string {
+func (h *secretHandler) Apply(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name
@@ -41,7 +46,7 @@ func (h *secretHandler) apply(rawData runtime.Object) string {
 			return err
 		})
 		if err != nil {
-			msg := fmt.Sprintf("update secret err: -- %s", name)
+			msg := fmt.Sprintf("update secret err -- %s", name)
 			h.logger.Errorf("%s: %s", msg, err.Error())
 			return msg
 		}
@@ -65,7 +70,7 @@ func (h *secretHandler) apply(rawData runtime.Object) string {
 	}
 }
 
-func (h *secretHandler) delete(rawData runtime.Object) string {
+func (h *secretHandler) Delete(rawData runtime.Object) string {
 	secret := rawData.(*apiv1.Secret)
 	secretsClient := h.kubeClient.CoreV1().Secrets(apiv1.NamespaceDefault)
 	name := secret.ObjectMeta.Name

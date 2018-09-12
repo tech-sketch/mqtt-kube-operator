@@ -23,11 +23,24 @@ build:
 	$(GOBUILD) -o $(NAME) -v
 test:
 	@echo "---test---"
+	$(GOGET) github.com/stretchr/testify
+	$(GOGET) github.com/golang/mock/gomock
+	$(GOGET) github.com/golang/mock/mockgen
+	$(GOGET) github.com/ghodss/yaml
+	mockgen -destination mock/mock_clientset.go -package mock k8s.io/client-go/kubernetes Interface
+	mockgen -destination mock/mock_corev1.go -package mock k8s.io/client-go/kubernetes/typed/core/v1 CoreV1Interface,ConfigMapInterface,SecretInterface,ServiceInterface
+	mockgen -destination mock/mock_appsv1.go -package mock k8s.io/client-go/kubernetes/typed/apps/v1 AppsV1Interface,DeploymentInterface
+	mockgen -destination mock/mock_mqtt.go -package mock github.com/eclipse/paho.mqtt.golang Client,Message,Token
+	mockgen -destination mock/mock_handler.go -package mock -source handlers/interfaces.go
+	go vet ./...
+	golint ./...
+	go test ./...
 clean:
 	@echo "---clean---"
 	$(GOCLEAN)
 	rm -f $(NAME)
 	rm -f $(CONTAINER_BINARY)
+	rm -rf mock/*.go
 run:
 	@echo "---run---"
 	@echo "MQTT_USE_TLS=${MQTT_USE_TLS}"
