@@ -60,17 +60,23 @@ spec:
             secretKeyRef:
               name: mqtt-username-password
               key: mqtt_password
+        - name: MQTT_USE_TLS
+          valueFrom:
+            configMapKeyRef:
+              name: mqtt-config
+              key: mqtt_use_tls
         - name: MQTT_HOST
           valueFrom:
             configMapKeyRef:
-              name: mqtt-endpoint
+              name: mqtt-config
               key: mqtt_host
         - name: MQTT_PORT
           valueFrom:
             configMapKeyRef:
-              name: mqtt-endpoint
+              name: mqtt-config
               key: mqtt_port
-        - name: MQTT_APPLY_TOPIC
-          value: "/mqtt-kube-operator/apply"
-        - name: MQTT_DELETE_TOPIC
-          value: "/mqtt-kube-operator/delete"
+        - name: MQTT_CMD_TOPIC
+          valueFrom:
+            configMapKeyRef:
+              name: mqtt-config
+              key: mqtt_cmd_topic

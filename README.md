@@ -1,6 +1,9 @@
 # mqtt-kube-operator
 Deploy a resource to remote Kubernetes using MQTT
 
+[![TravisCI Status](https://travis-ci.org/tech-sketch/mqtt-kube-operator.svg?branch=master)](https://travis-ci.org/tech-sketch/mqtt-kube-operator)
+[![DockerHub Status](https://dockerbuildbadges.quelltext.eu/status.svg?organization=techsketch&repository=mqtt-kube-operator)](https://hub.docker.com/r/techsketch/mqtt-kube-operator/builds/)
+
 ## Description
 When this container is deployed a Kubernetes cluster, the container subscribes two MQTT topics.  
 When a json string is received from subscribed topic, this container create / update / delete a Resource to its own Kubernetes.
@@ -22,11 +25,13 @@ This REST API accept Environment Variables like below:
 
 |Environment Variable|Summary|
 |:--|:--|
+|`MQTT_USE_TLS`|set `false` when connecting local MQTT Broker without TLS|
 |`MQTT_TLS_CA_PATH`|path to cafile used to connect MQTT Broker|
 |`MQTT_USERNAME`|username used to connect MQTT Broker|
 |`MQTT_PASSWORD`|password used to connect MQTT Broker|
 |`MQTT_HOST`|hostname of MQTT Broker|
 |`MQTT_PORT`|port of MQTT Broker|
+|`MQTT_CMD_TOPIC`|topic name used [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally
@@ -40,8 +45,7 @@ This REST API accept Environment Variables like below:
     $ export MQTT_PASSWORD=the_password_of_mqtt_user
     $ export MQTT_HOST=mqtt.example.com
     $ export MQTT_PORT=8883
-    $ export MQTT_APPLY_TOPIC=/deployer/apply
-    $ export MQTT_DELETE_TOPIC=/deployer/delete
+    $ export MQTT_CMD_TOPIC=/deployer/delopyer_01
     ```
 1. get dependencies (at the first time only)
 
@@ -59,13 +63,13 @@ This REST API accept Environment Variables like below:
 1. build program and build container image
 
     ```bash
-    $ make
+    $ make VERSION=0.1.0
     ```
 1. push container to DockerHub
 
     ```bash
     $ docker login
-    $ make push
+    $ make push VERSION=0.1.0
     ```
 
 ## License
