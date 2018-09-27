@@ -31,7 +31,8 @@ This REST API accept Environment Variables like below:
 |`MQTT_PASSWORD`|password used to connect MQTT Broker|
 |`MQTT_HOST`|hostname of MQTT Broker|
 |`MQTT_PORT`|port of MQTT Broker|
-|`MQTT_CMD_TOPIC`|topic name used [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
+|`DEVICE_TYPE`|device type which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
+|`DEVICE_ID`|device id which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally
@@ -45,7 +46,8 @@ This REST API accept Environment Variables like below:
     $ export MQTT_PASSWORD=the_password_of_mqtt_user
     $ export MQTT_HOST=mqtt.example.com
     $ export MQTT_PORT=8883
-    $ export MQTT_CMD_TOPIC=/deployer/delopyer_01
+    $ export DEVICE_TYPE=deployer
+    $ export DEVICE_ID=delopyer_01
     ```
 1. get dependencies (at the first time only)
 

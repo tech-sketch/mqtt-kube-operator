@@ -29,16 +29,19 @@ import (
 type executer struct {
 	logger         *zap.SugaredLogger
 	opts           *mqtt.ClientOptions
-	cmdTopic       string
+	deviceType     string
+	deviceID       string
 	messageHandler *handlers.MessageHandler
-	client         mqtt.Client
+	mqttClient     mqtt.Client
+	kubeClient     *kubernetes.Clientset
 }
 
 func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	e := &executer{
-		logger:   logger,
-		opts:     mqtt.NewClientOptions(),
-		cmdTopic: os.Getenv("MQTT_CMD_TOPIC"),
+		logger:     logger,
+		opts:       mqtt.NewClientOptions(),
+		deviceType: os.Getenv("DEVICE_TYPE"),
+		deviceID:   os.Getenv("DEVICE_ID"),
 	}
 	config, err := e.getKubeConfig()
 	if err != nil {
@@ -48,13 +51,14 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	if err != nil {
 		return nil, err
 	}
-	e.messageHandler = handlers.NewMessageHandler(clientset, logger, e.cmdTopic)
+	e.messageHandler = handlers.NewMessageHandler(clientset, logger, e.deviceType, e.deviceID)
 
 	if err := e.setMQTTOptions(); err != nil {
 		return nil, err
 	}
 	e.opts.OnConnect = e.onConnect
-	e.client = mqtt.NewClient(e.opts)
+	e.mqttClient = mqtt.NewClient(e.opts)
+	e.kubeClient = clientset
 	return e, nil
 }
 
@@ -104,13 +108,13 @@ func (e *executer) setMQTTOptions() error {
 
 func (e *executer) onConnect(c mqtt.Client) {
 	if cmdToken := c.Subscribe(e.messageHandler.GetCmdTopic(), 0, e.messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
-		e.logger.Errorf("mqtt subscribe error, topic=%s, %s", e.cmdTopic, cmdToken.Error())
+		e.logger.Errorf("mqtt subscribe error, deviceType=%s, deviceID=%s, %s", e.deviceType, e.deviceID, cmdToken.Error())
 		panic(cmdToken.Error())
 	}
 }
 
 func handle(e *executer) string {
-	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
+	if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		msg := fmt.Sprintf("mqtt connect error: %s", token.Error())
 		e.logger.Errorf(msg)
 		panic(token.Error())

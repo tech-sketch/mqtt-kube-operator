@@ -55,7 +55,8 @@ run:
 	@echo "MQTT_PASSWORD=${MQTT_PASSWORD}"
 	@echo "MQTT_HOST=${MQTT_HOST}"
 	@echo "MQTT_PORT=${MQTT_PORT}"
-	@echo "MQTT_CMD_TOPIC=${MQTT_CMD_TOPIC}"
+	@echo "DEVICE_TYPE=${DEVICE_TYPE}"
+	@echo "DEVICE_ID=${DEVICE_ID}"
 	$(GOBUILD) -o $(NAME) -v
 	./$(NAME)
 cross-compile:
