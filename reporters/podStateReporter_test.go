@@ -155,6 +155,7 @@ func TestPodReport(t *testing.T) {
 		},
 	}
 
+	dt := time.Date(2018, 1, 2, 3, 4, 5, 0, time.Local).Format(time.RFC3339)
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("pod num=%d", len(testCase.podList.Items)), func(t *testing.T) {
 			impl, mqttClient, token, podsClient, tearDown := setUpPodStateReporterImplMocks(t)
@@ -164,13 +165,13 @@ func TestPodReport(t *testing.T) {
 			if len(testCase.podList.Items) == 0 {
 				mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
 			} else if len(testCase.podList.Items) == 1 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|podname|testpod1|podlabel|value1|podphase|Running").Return(token).Times(1)
+				mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod1|podlabel|value1|podphase|Running").Return(token).Times(1)
 				token.EXPECT().Wait().Return(true).Times(1)
 				token.EXPECT().Error().Return(nil).Times(1)
 			} else {
 				gomock.InOrder(
-					mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|podname|testpod1|podlabel|value1|podphase|Running").Return(token),
-					mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|podname|testpod2|podlabel|value2|podphase|Running").Return(token),
+					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod1|podlabel|value1|podphase|Running").Return(token),
+					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod2|podlabel|value2|podphase|Running").Return(token),
 				)
 				token.EXPECT().Wait().Return(true).Times(2)
 				token.EXPECT().Error().Return(nil).Times(2)

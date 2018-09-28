@@ -186,6 +186,7 @@ func TestDeploymentReport(t *testing.T) {
 		},
 	}
 
+	dt := time.Date(2018, 1, 2, 3, 4, 5, 0, time.Local).Format(time.RFC3339)
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("deployment num=%d", len(testCase.deploymentList.Items)), func(t *testing.T) {
 			impl, mqttClient, token, deploymentsClient, tearDown := setUpDeploymentStateReporterImplMocks(t)
@@ -195,13 +196,13 @@ func TestDeploymentReport(t *testing.T) {
 			if len(testCase.deploymentList.Items) == 0 {
 				mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
 			} else if len(testCase.deploymentList.Items) == 1 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token).Times(1)
+				mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token).Times(1)
 				token.EXPECT().Wait().Return(true).Times(1)
 				token.EXPECT().Error().Return(nil).Times(1)
 			} else {
 				gomock.InOrder(
-					mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token),
-					mqttClient.EXPECT().Publish("/test", byte(0), false, "2018-01-02T03:04:05+09:00|deployment|testdeployment2|desired|11|current|12|updated|13|ready|14|unavailable|15|available|16").Return(token),
+					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token),
+					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment2|desired|11|current|12|updated|13|ready|14|unavailable|15|available|16").Return(token),
 				)
 				token.EXPECT().Wait().Return(true).Times(2)
 				token.EXPECT().Error().Return(nil).Times(2)
