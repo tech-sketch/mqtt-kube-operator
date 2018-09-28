@@ -31,10 +31,12 @@ func setUpMocks(t *testing.T) (*executer, *mock.MockClient, *mock.MockToken, fun
 
 	mqttClient := mock.NewMockClient(ctrl)
 	token := mock.NewMockToken(ctrl)
+	podStateReporter := mock.NewMockReporterInf(ctrl)
 
 	exec := &executer{
-		logger:     logger.Sugar(),
-		mqttClient: mqttClient,
+		logger:           logger.Sugar(),
+		mqttClient:       mqttClient,
+		podStateReporter: podStateReporter,
 	}
 	return exec, mqttClient, token, func() {
 		logger.Sync()
@@ -212,6 +214,7 @@ func TestOnConnect(t *testing.T) {
 	mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
 	token.EXPECT().Wait().Return(true)
 	token.EXPECT().Error().Return(nil)
+	exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
 
 	exec.onConnect(mqttClient)
 }

@@ -33,6 +33,7 @@ This REST API accept Environment Variables like below:
 |`MQTT_PORT`|port of MQTT Broker|
 |`DEVICE_TYPE`|device type which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
 |`DEVICE_ID`|device id which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
+|`REPORT_INTERVAL_SEC`|report interval seconds (default 1 second)|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally

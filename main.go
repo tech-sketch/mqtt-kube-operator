@@ -24,16 +24,17 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/tech-sketch/mqtt-kube-operator/handlers"
+	"github.com/tech-sketch/mqtt-kube-operator/reporters"
 )
 
 type executer struct {
-	logger         *zap.SugaredLogger
-	opts           *mqtt.ClientOptions
-	deviceType     string
-	deviceID       string
-	messageHandler *handlers.MessageHandler
-	mqttClient     mqtt.Client
-	kubeClient     *kubernetes.Clientset
+	logger           *zap.SugaredLogger
+	opts             *mqtt.ClientOptions
+	deviceType       string
+	deviceID         string
+	messageHandler   *handlers.MessageHandler
+	podStateReporter reporters.ReporterInf
+	mqttClient       mqtt.Client
 }
 
 func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
@@ -43,6 +44,11 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 		deviceType: os.Getenv("DEVICE_TYPE"),
 		deviceID:   os.Getenv("DEVICE_ID"),
 	}
+	intervalSec, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL_SEC"))
+	if err != nil {
+		intervalSec = 1
+	}
+
 	config, err := e.getKubeConfig()
 	if err != nil {
 		return nil, err
@@ -58,7 +64,7 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	}
 	e.opts.OnConnect = e.onConnect
 	e.mqttClient = mqtt.NewClient(e.opts)
-	e.kubeClient = clientset
+	e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, intervalSec)
 	return e, nil
 }
 
@@ -111,6 +117,7 @@ func (e *executer) onConnect(c mqtt.Client) {
 		e.logger.Errorf("mqtt subscribe error, deviceType=%s, deviceID=%s, %s", e.deviceType, e.deviceID, cmdToken.Error())
 		panic(cmdToken.Error())
 	}
+	e.podStateReporter.StartReporting()
 }
 
 func handle(e *executer) string {
@@ -135,16 +142,26 @@ func main() {
 
 	logger.Infof("start main")
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	sigCh := make(chan os.Signal, 1)
+	exitCh := make(chan bool, 1)
+
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	exec, err := newExecuter(logger)
 	if err != nil {
 		logger.Errorf("executer error: %s", err.Error())
 		panic(err)
 	}
-
 	handle(exec)
-	<-c
+
+	go func() {
+		s := <-sigCh
+		logger.Infof("caught signal :%v", s)
+		exec.podStateReporter.GetStopCh() <- true
+		<-exec.podStateReporter.GetFinishCh()
+		exitCh <- true
+	}()
+
+	<-exitCh
 	logger.Infof("finish main")
 }

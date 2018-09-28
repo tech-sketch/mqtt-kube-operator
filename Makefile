@@ -32,6 +32,7 @@ mock-gen:
 	mockgen -destination mock/mock_appsv1.go -package mock k8s.io/client-go/kubernetes/typed/apps/v1 AppsV1Interface,DeploymentInterface
 	mockgen -destination mock/mock_mqtt.go -package mock github.com/eclipse/paho.mqtt.golang Client,Message,Token
 	mockgen -destination mock/mock_handler.go -package mock -source handlers/interfaces.go
+	mockgen -destination mock/mock_reporter.go -package mock -source reporters/interfaces.go
 build:
 	@echo "---build---"
 	$(GOBUILD) -o $(NAME) -v
@@ -57,6 +58,7 @@ run:
 	@echo "MQTT_PORT=${MQTT_PORT}"
 	@echo "DEVICE_TYPE=${DEVICE_TYPE}"
 	@echo "DEVICE_ID=${DEVICE_ID}"
+	@echo "REPORT_INTERVAL_SEC=${REPORT_INTERVAL_SEC}"
 	$(GOBUILD) -o $(NAME) -v
 	./$(NAME)
 cross-compile:
