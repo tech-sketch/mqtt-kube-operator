@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const attrsFormat = "%s|podname|%s|podlabel|%s|podphase|%s"
+const podAttrsFormat = "%s|podname|%s|podlabel|%s|podphase|%s"
 
 /*
 PodStateReporter : a struct to report the state of PODs.
@@ -69,7 +69,7 @@ func (impl *podStateReporterImpl) Report(topic string) {
 	}
 	for _, pod := range list.Items {
 		if val, ok := pod.ObjectMeta.Labels[impl.targetLabelKey]; ok {
-			msg := fmt.Sprintf(attrsFormat, impl.getCurrentTime().Format(time.RFC3339), pod.ObjectMeta.Name, val, pod.Status.Phase)
+			msg := fmt.Sprintf(podAttrsFormat, impl.getCurrentTime().Format(time.RFC3339), pod.ObjectMeta.Name, val, pod.Status.Phase)
 			if token := impl.mqttClient.Publish(topic, 0, false, msg); token.Wait() && token.Error() != nil {
 				impl.logger.Errorf("mqtt publish error, topic=%s, msg=%s, %s", topic, msg, token.Error())
 			}

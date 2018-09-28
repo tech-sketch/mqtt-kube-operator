@@ -28,14 +28,16 @@ import (
 )
 
 type executer struct {
-	logger              *zap.SugaredLogger
-	opts                *mqtt.ClientOptions
-	deviceType          string
-	deviceID            string
-	messageHandler      *handlers.MessageHandler
-	podStateReporter    reporters.ReporterInf
-	mqttClient          mqtt.Client
-	usePodStateReporter bool
+	logger                     *zap.SugaredLogger
+	opts                       *mqtt.ClientOptions
+	deviceType                 string
+	deviceID                   string
+	messageHandler             *handlers.MessageHandler
+	mqttClient                 mqtt.Client
+	usePodStateReporter        bool
+	podStateReporter           reporters.ReporterInf
+	useDeploymentStateReporter bool
+	deploymentStateReporter    reporters.ReporterInf
 }
 
 func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
@@ -68,6 +70,12 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	}
 	e.usePodStateReporter = usePodStateReporter
 
+	useDeploymentStateReporter, err := strconv.ParseBool(os.Getenv("USE_DEPLOYMENT_STATE_REPORTER"))
+	if err != nil {
+		useDeploymentStateReporter = false
+	}
+	e.useDeploymentStateReporter = useDeploymentStateReporter
+
 	getIntervalSec := func() int {
 		intervalSec, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL_SEC"))
 		if err != nil {
@@ -79,6 +87,10 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 		targetLabelKey := os.Getenv("REPORT_TARGET_LABEL_KEY")
 		e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
 	}
+	if e.useDeploymentStateReporter {
+		e.deploymentStateReporter = reporters.NewDeploymentStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec())
+	}
+
 	return e, nil
 }
 
@@ -134,6 +146,9 @@ func (e *executer) onConnect(c mqtt.Client) {
 	if e.usePodStateReporter {
 		e.podStateReporter.StartReporting()
 	}
+	if e.useDeploymentStateReporter {
+		e.deploymentStateReporter.StartReporting()
+	}
 }
 
 func handle(e *executer) string {
@@ -176,6 +191,10 @@ func main() {
 		if exec.usePodStateReporter {
 			exec.podStateReporter.GetStopCh() <- true
 			<-exec.podStateReporter.GetFinishCh()
+		}
+		if exec.useDeploymentStateReporter {
+			exec.deploymentStateReporter.GetStopCh() <- true
+			<-exec.deploymentStateReporter.GetFinishCh()
 		}
 		exitCh <- true
 	}()

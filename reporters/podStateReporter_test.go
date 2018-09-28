@@ -39,7 +39,7 @@ func setUpPodStateReporterMocks(t *testing.T, deviceType string, deviceID string
 	}
 }
 
-func TestGetTopic(t *testing.T) {
+func TestPodGetTopic(t *testing.T) {
 	assert := assert.New(t)
 
 	deviceTypeCases := []struct {
@@ -70,7 +70,7 @@ func TestGetTopic(t *testing.T) {
 	}
 }
 
-func TestGetChannel(t *testing.T) {
+func TestPodGetChannel(t *testing.T) {
 	assert := assert.New(t)
 	podStateReporter, tearDown := setUpPodStateReporterMocks(t, "dType", "dID", 1)
 	defer tearDown()
@@ -79,7 +79,7 @@ func TestGetChannel(t *testing.T) {
 	assert.Equal(podStateReporter.finishCh, podStateReporter.GetFinishCh())
 }
 
-func TestStartReporting(t *testing.T) {
+func TestPodStartReporting(t *testing.T) {
 	assert := assert.New(t)
 	podStateReporter, tearDown := setUpPodStateReporterMocks(t, "dType", "dID", 10)
 	defer tearDown()
@@ -109,9 +109,9 @@ func setUpPodStateReporterImplMocks(t *testing.T) (*podStateReporterImpl, *mock.
 
 	kubeClient := mock.NewMockInterface(ctrl)
 	corev1 := mock.NewMockCoreV1Interface(ctrl)
-	podClient := mock.NewMockPodInterface(ctrl)
+	podsClient := mock.NewMockPodInterface(ctrl)
 	kubeClient.EXPECT().CoreV1().Return(corev1).Times(1)
-	corev1.EXPECT().Pods(gomock.Any()).Return(podClient).Times(1)
+	corev1.EXPECT().Pods(gomock.Any()).Return(podsClient).Times(1)
 
 	impl := &podStateReporterImpl{
 		logger:         logger.Sugar(),
@@ -123,13 +123,13 @@ func setUpPodStateReporterImplMocks(t *testing.T) (*podStateReporterImpl, *mock.
 		},
 	}
 
-	return impl, mqttClient, token, podClient, func() {
+	return impl, mqttClient, token, podsClient, func() {
 		logger.Sync()
 		ctrl.Finish()
 	}
 }
 
-func TestReport(t *testing.T) {
+func TestPodReport(t *testing.T) {
 	testCases := []struct {
 		podList apiv1.PodList
 	}{
@@ -157,10 +157,10 @@ func TestReport(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(fmt.Sprintf("pod num=%d", len(testCase.podList.Items)), func(t *testing.T) {
-			impl, mqttClient, token, podClient, tearDown := setUpPodStateReporterImplMocks(t)
+			impl, mqttClient, token, podsClient, tearDown := setUpPodStateReporterImplMocks(t)
 			defer tearDown()
 
-			podClient.EXPECT().List(gomock.Any()).Return(&testCase.podList, nil).Times(1)
+			podsClient.EXPECT().List(gomock.Any()).Return(&testCase.podList, nil).Times(1)
 			if len(testCase.podList.Items) == 0 {
 				mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
 			} else if len(testCase.podList.Items) == 1 {
@@ -178,4 +178,14 @@ func TestReport(t *testing.T) {
 			impl.Report("/test")
 		})
 	}
+}
+
+func TestPodReportError(t *testing.T) {
+	impl, mqttClient, _, podsClient, tearDown := setUpPodStateReporterImplMocks(t)
+	defer tearDown()
+
+	podsClient.EXPECT().List(gomock.Any()).Return(nil, fmt.Errorf("test error")).Times(1)
+	mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+
+	impl.Report("/test")
 }

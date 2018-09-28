@@ -32,11 +32,13 @@ func setUpMocks(t *testing.T) (*executer, *mock.MockClient, *mock.MockToken, fun
 	mqttClient := mock.NewMockClient(ctrl)
 	token := mock.NewMockToken(ctrl)
 	podStateReporter := mock.NewMockReporterInf(ctrl)
+	deploymentStateReporter := mock.NewMockReporterInf(ctrl)
 
 	exec := &executer{
-		logger:           logger.Sugar(),
-		mqttClient:       mqttClient,
-		podStateReporter: podStateReporter,
+		logger:                  logger.Sugar(),
+		mqttClient:              mqttClient,
+		podStateReporter:        podStateReporter,
+		deploymentStateReporter: deploymentStateReporter,
 	}
 	return exec, mqttClient, token, func() {
 		logger.Sync()
@@ -217,18 +219,31 @@ func TestOnConnect(t *testing.T) {
 		{use: true},
 		{use: false},
 	}
-	for _, podStateReporterCase := range podStateReporcerCases {
-		t.Run(fmt.Sprintf("usePodStateReporter=%v", podStateReporterCase.use), func(t *testing.T) {
-			exec.usePodStateReporter = podStateReporterCase.use
+	deploymentStateReporcerCases := []struct {
+		use bool
+	}{
+		{use: true},
+		{use: false},
+	}
 
-			mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
-			token.EXPECT().Wait().Return(true)
-			token.EXPECT().Error().Return(nil)
-			if exec.usePodStateReporter {
-				exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
-			}
+	for _, pCase := range podStateReporcerCases {
+		for _, dCase := range deploymentStateReporcerCases {
+			t.Run(fmt.Sprintf("usePodStateReporter=%v, useDeploymentStateReporter=%v", pCase.use, dCase.use), func(t *testing.T) {
+				exec.usePodStateReporter = pCase.use
+				exec.useDeploymentStateReporter = dCase.use
 
-			exec.onConnect(mqttClient)
-		})
+				mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
+				token.EXPECT().Wait().Return(true)
+				token.EXPECT().Error().Return(nil)
+				if exec.usePodStateReporter {
+					exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+				}
+				if exec.useDeploymentStateReporter {
+					exec.deploymentStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+				}
+
+				exec.onConnect(mqttClient)
+			})
+		}
 	}
 }
