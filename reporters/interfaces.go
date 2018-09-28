@@ -23,7 +23,7 @@ type ReporterInf interface {
 ReporterImplInf : a interface to specify the method signatures that ReporterImpl should be implemented.
 */
 type ReporterImplInf interface {
-	Report()
+	Report(string)
 }
 
 type baseReporter struct {
@@ -62,7 +62,7 @@ LOOP:
 	for {
 		select {
 		case <-ticker.C:
-			impl.Report()
+			impl.Report(b.GetAttrsTopic())
 		case <-b.stopCh:
 			ticker.Stop()
 			break LOOP

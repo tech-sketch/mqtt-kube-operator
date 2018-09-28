@@ -28,13 +28,14 @@ import (
 )
 
 type executer struct {
-	logger           *zap.SugaredLogger
-	opts             *mqtt.ClientOptions
-	deviceType       string
-	deviceID         string
-	messageHandler   *handlers.MessageHandler
-	podStateReporter reporters.ReporterInf
-	mqttClient       mqtt.Client
+	logger              *zap.SugaredLogger
+	opts                *mqtt.ClientOptions
+	deviceType          string
+	deviceID            string
+	messageHandler      *handlers.MessageHandler
+	podStateReporter    reporters.ReporterInf
+	mqttClient          mqtt.Client
+	usePodStateReporter bool
 }
 
 func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
@@ -43,10 +44,6 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 		opts:       mqtt.NewClientOptions(),
 		deviceType: os.Getenv("DEVICE_TYPE"),
 		deviceID:   os.Getenv("DEVICE_ID"),
-	}
-	intervalSec, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL_SEC"))
-	if err != nil {
-		intervalSec = 1
 	}
 
 	config, err := e.getKubeConfig()
@@ -64,7 +61,24 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	}
 	e.opts.OnConnect = e.onConnect
 	e.mqttClient = mqtt.NewClient(e.opts)
-	e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, intervalSec)
+
+	usePodStateReporter, err := strconv.ParseBool(os.Getenv("USE_POD_STATE_REPORTER"))
+	if err != nil {
+		usePodStateReporter = false
+	}
+	e.usePodStateReporter = usePodStateReporter
+
+	getIntervalSec := func() int {
+		intervalSec, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL_SEC"))
+		if err != nil {
+			intervalSec = 1
+		}
+		return intervalSec
+	}
+	if e.usePodStateReporter {
+		targetLabelKey := os.Getenv("REPORT_TARGET_LABEL_KEY")
+		e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
+	}
 	return e, nil
 }
 
@@ -117,7 +131,9 @@ func (e *executer) onConnect(c mqtt.Client) {
 		e.logger.Errorf("mqtt subscribe error, deviceType=%s, deviceID=%s, %s", e.deviceType, e.deviceID, cmdToken.Error())
 		panic(cmdToken.Error())
 	}
-	e.podStateReporter.StartReporting()
+	if e.usePodStateReporter {
+		e.podStateReporter.StartReporting()
+	}
 }
 
 func handle(e *executer) string {
@@ -156,9 +172,11 @@ func main() {
 
 	go func() {
 		s := <-sigCh
-		logger.Infof("caught signal :%v", s)
-		exec.podStateReporter.GetStopCh() <- true
-		<-exec.podStateReporter.GetFinishCh()
+		logger.Debugf("caught signal :%v", s)
+		if exec.usePodStateReporter {
+			exec.podStateReporter.GetStopCh() <- true
+			<-exec.podStateReporter.GetFinishCh()
+		}
 		exitCh <- true
 	}()
 

@@ -211,10 +211,24 @@ func TestOnConnect(t *testing.T) {
 
 	exec.messageHandler = handlers.NewMessageHandler(nil, exec.logger, "testDeviceType", "testDeviceID")
 
-	mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
-	token.EXPECT().Wait().Return(true)
-	token.EXPECT().Error().Return(nil)
-	exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+	podStateReporcerCases := []struct {
+		use bool
+	}{
+		{use: true},
+		{use: false},
+	}
+	for _, podStateReporterCase := range podStateReporcerCases {
+		t.Run(fmt.Sprintf("usePodStateReporter=%v", podStateReporterCase.use), func(t *testing.T) {
+			exec.usePodStateReporter = podStateReporterCase.use
 
-	exec.onConnect(mqttClient)
+			mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
+			token.EXPECT().Wait().Return(true)
+			token.EXPECT().Error().Return(nil)
+			if exec.usePodStateReporter {
+				exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+			}
+
+			exec.onConnect(mqttClient)
+		})
+	}
 }
