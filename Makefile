@@ -45,6 +45,7 @@ test: test-deps mock-gen
 clean:
 	@echo "---clean---"
 	$(GOCLEAN)
+	$(GOCLEAN) -testcache
 	rm -f $(NAME)
 	rm -f $(CONTAINER_BINARY)
 	rm -rf mock/*.go
