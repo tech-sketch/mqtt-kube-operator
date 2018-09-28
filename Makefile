@@ -11,6 +11,7 @@ GOARCH_CONTAINER=amd64
 CONTAINER_BINARY=docker_$(NAME)
 CONTAINER_IMAGE=techsketch/$(NAME)
 
+TGTDIR:=`go list ./... | grep -v mock`
 
 all: clean deps test cross-compile docker-build
 deps:
@@ -38,9 +39,9 @@ build:
 	$(GOBUILD) -o $(NAME) -v
 test: test-deps mock-gen
 	@echo "---test---"
-	go vet ./...
-	golint ./...
-	go test ./...
+	go vet $(TGTDIR)
+	golint $(TGTDIR)
+	go test $(TGTDIR)
 clean:
 	@echo "---clean---"
 	$(GOCLEAN)
