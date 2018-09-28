@@ -5,8 +5,12 @@ Package reporters : report state of kubernetes using MQTT.
 */
 package reporters
 
+import (
+	"time"
+)
+
 /*
-ReporterInf : a interface to specify the method signatures that reporter should be implemented.
+ReporterInf : a interface to specify the method signatures that Reporter should be implemented.
 */
 type ReporterInf interface {
 	GetAttrsTopic() string
@@ -15,9 +19,19 @@ type ReporterInf interface {
 	GetFinishCh() chan bool
 }
 
+/*
+ReporterImplInf : a interface to specify the method signatures that ReporterImpl should be implemented.
+*/
+type ReporterImplInf interface {
+	Report()
+}
+
 type baseReporter struct {
-	deviceType string
-	deviceID   string
+	deviceType       string
+	deviceID         string
+	intervalMillisec time.Duration
+	stopCh           chan bool
+	finishCh         chan bool
 }
 
 /*
@@ -25,4 +39,36 @@ GetAttrsTopic : get the attributes topic name
 */
 func (b *baseReporter) GetAttrsTopic() string {
 	return "/" + b.deviceType + "/" + b.deviceID + "/attrs"
+}
+
+/*
+GetStopCh : get the channel to receive a loop stop message
+*/
+func (b *baseReporter) GetStopCh() chan bool {
+	return b.stopCh
+}
+
+/*
+GetFinishCh : get the channel to send a loop stopped message
+*/
+func (b *baseReporter) GetFinishCh() chan bool {
+	return b.finishCh
+}
+
+func (b *baseReporter) loop(impl ReporterImplInf) {
+	ticker := time.NewTicker(b.intervalMillisec * time.Millisecond)
+
+LOOP:
+	for {
+		select {
+		case <-ticker.C:
+			impl.Report()
+		case <-b.stopCh:
+			ticker.Stop()
+			break LOOP
+		}
+	}
+
+	close(b.stopCh)
+	close(b.finishCh)
 }

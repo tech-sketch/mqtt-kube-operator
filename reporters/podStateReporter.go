@@ -20,12 +20,8 @@ PodStateReporter : a struct to report the state of PODs.
 */
 type PodStateReporter struct {
 	*baseReporter
-	logger      *zap.SugaredLogger
-	mqttClient  mqtt.Client
-	kubeClient  *kubernetes.Clientset
-	intervalSec time.Duration
-	stopCh      chan bool
-	finishCh    chan bool
+	impl   ReporterImplInf
+	logger *zap.SugaredLogger
 }
 
 /*
@@ -33,28 +29,10 @@ NewPodStateReporter : a factory method to create PodStateReporter.
 */
 func NewPodStateReporter(mqttClient mqtt.Client, kubeClient *kubernetes.Clientset, logger *zap.SugaredLogger, deviceType string, deviceID string, intervalSec int) *PodStateReporter {
 	return &PodStateReporter{
-		baseReporter: &baseReporter{deviceType, deviceID},
+		baseReporter: &baseReporter{deviceType, deviceID, time.Duration(intervalSec * 1000), make(chan bool, 1), make(chan bool, 1)},
+		impl:         &podStateReporterImpl{logger, mqttClient, kubeClient},
 		logger:       logger,
-		mqttClient:   mqttClient,
-		kubeClient:   kubeClient,
-		intervalSec:  time.Duration(intervalSec),
-		stopCh:       make(chan bool, 1),
-		finishCh:     make(chan bool, 1),
 	}
-}
-
-/*
-GetStopCh : get the channel to receive a loop stop message
-*/
-func (r *PodStateReporter) GetStopCh() chan bool {
-	return r.stopCh
-}
-
-/*
-GetFinishCh : get the channel to send a loop stopped message
-*/
-func (r *PodStateReporter) GetFinishCh() chan bool {
-	return r.finishCh
 }
 
 /*
@@ -63,20 +41,17 @@ StartReporting : start a loop to report the state of PODs at the specified inter
 func (r *PodStateReporter) StartReporting() {
 	go func() {
 		r.logger.Debugf("start reporter loop")
-		ticker := time.NewTicker(r.intervalSec * time.Second)
-
-	LOOP:
-		for {
-			select {
-			case <-ticker.C:
-				r.logger.Debugf("check pod status")
-			case <-r.stopCh:
-				ticker.Stop()
-				break LOOP
-			}
-		}
+		r.baseReporter.loop(r.impl)
 		r.logger.Debugf("stop reporter loop")
-		close(r.stopCh)
-		close(r.finishCh)
 	}()
+}
+
+type podStateReporterImpl struct {
+	logger     *zap.SugaredLogger
+	mqttClient mqtt.Client
+	kubeClient kubernetes.Interface
+}
+
+func (impl *podStateReporterImpl) Report() {
+	impl.logger.Debugf("check pod state")
 }
