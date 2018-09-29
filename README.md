@@ -34,6 +34,9 @@ This REST API accept Environment Variables like below:
 |`DEVICE_TYPE`|device type which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
 |`DEVICE_ID`|device id which is registered to [iotagent-ul](https://github.com/telefonicaid/iotagent-ul) of [FIWARE](https://www.fiware.org)|
 |`REPORT_INTERVAL_SEC`|report interval seconds (default 1 second)|
+|`USE_DEPLOYMENT_STATE_REPORTER`|set true when using deploymentStateReporter (default false)|
+|`USE_POD_STATE_REPORTER`|set true when using podStateReporter (default false)|
+|`REPORT_TARGET_LABEL_KEY`|the target label to gather the status of pods|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally
@@ -49,6 +52,8 @@ This REST API accept Environment Variables like below:
     $ export MQTT_PORT=8883
     $ export DEVICE_TYPE=deployer
     $ export DEVICE_ID=delopyer_01
+    $ export REPORT_INTERVAL_SEC=1
+    $ export USE_DEPLOYMENT_STATE_REPORTER=true
     ```
 1. get dependencies (at the first time only)
 
