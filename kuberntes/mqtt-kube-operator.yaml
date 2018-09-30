@@ -91,3 +91,5 @@ spec:
           value: "1"
         - name: USE_DEPLOYMENT_STATE_REPORTER
           value: "true"
+        - name: REPORT_TARGET_LABEL_KEY
+          value: "report"
