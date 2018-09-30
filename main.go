@@ -13,9 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
@@ -24,22 +26,30 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/tech-sketch/mqtt-kube-operator/handlers"
+	"github.com/tech-sketch/mqtt-kube-operator/reporters"
 )
 
 type executer struct {
-	logger         *zap.SugaredLogger
-	opts           *mqtt.ClientOptions
-	cmdTopic       string
-	messageHandler *handlers.MessageHandler
-	client         mqtt.Client
+	logger                     *zap.SugaredLogger
+	opts                       *mqtt.ClientOptions
+	deviceType                 string
+	deviceID                   string
+	messageHandler             *handlers.MessageHandler
+	mqttClient                 mqtt.Client
+	usePodStateReporter        bool
+	podStateReporter           reporters.ReporterInf
+	useDeploymentStateReporter bool
+	deploymentStateReporter    reporters.ReporterInf
 }
 
 func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	e := &executer{
-		logger:   logger,
-		opts:     mqtt.NewClientOptions(),
-		cmdTopic: os.Getenv("MQTT_CMD_TOPIC"),
+		logger:     logger,
+		opts:       mqtt.NewClientOptions(),
+		deviceType: os.Getenv("DEVICE_TYPE"),
+		deviceID:   os.Getenv("DEVICE_ID"),
 	}
+
 	config, err := e.getKubeConfig()
 	if err != nil {
 		return nil, err
@@ -48,13 +58,41 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 	if err != nil {
 		return nil, err
 	}
-	e.messageHandler = handlers.NewMessageHandler(clientset, logger, e.cmdTopic)
+	e.messageHandler = handlers.NewMessageHandler(clientset, logger, e.deviceType, e.deviceID)
 
 	if err := e.setMQTTOptions(); err != nil {
 		return nil, err
 	}
 	e.opts.OnConnect = e.onConnect
-	e.client = mqtt.NewClient(e.opts)
+	e.mqttClient = mqtt.NewClient(e.opts)
+
+	usePodStateReporter, err := strconv.ParseBool(os.Getenv("USE_POD_STATE_REPORTER"))
+	if err != nil {
+		usePodStateReporter = false
+	}
+	e.usePodStateReporter = usePodStateReporter
+
+	useDeploymentStateReporter, err := strconv.ParseBool(os.Getenv("USE_DEPLOYMENT_STATE_REPORTER"))
+	if err != nil {
+		useDeploymentStateReporter = false
+	}
+	e.useDeploymentStateReporter = useDeploymentStateReporter
+
+	getIntervalSec := func() int {
+		intervalSec, err := strconv.Atoi(os.Getenv("REPORT_INTERVAL_SEC"))
+		if err != nil {
+			intervalSec = 1
+		}
+		return intervalSec
+	}
+	targetLabelKey := os.Getenv("REPORT_TARGET_LABEL_KEY")
+	if e.usePodStateReporter {
+		e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
+	}
+	if e.useDeploymentStateReporter {
+		e.deploymentStateReporter = reporters.NewDeploymentStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
+	}
+
 	return e, nil
 }
 
@@ -104,13 +142,19 @@ func (e *executer) setMQTTOptions() error {
 
 func (e *executer) onConnect(c mqtt.Client) {
 	if cmdToken := c.Subscribe(e.messageHandler.GetCmdTopic(), 0, e.messageHandler.Command()); cmdToken.Wait() && cmdToken.Error() != nil {
-		e.logger.Errorf("mqtt subscribe error, topic=%s, %s", e.cmdTopic, cmdToken.Error())
+		e.logger.Errorf("mqtt subscribe error, deviceType=%s, deviceID=%s, %s", e.deviceType, e.deviceID, cmdToken.Error())
 		panic(cmdToken.Error())
+	}
+	if e.usePodStateReporter {
+		e.podStateReporter.StartReporting()
+	}
+	if e.useDeploymentStateReporter {
+		e.deploymentStateReporter.StartReporting()
 	}
 }
 
 func handle(e *executer) string {
-	if token := e.client.Connect(); token.Wait() && token.Error() != nil {
+	if token := e.mqttClient.Connect(); token.Wait() && token.Error() != nil {
 		msg := fmt.Sprintf("mqtt connect error: %s", token.Error())
 		e.logger.Errorf(msg)
 		panic(token.Error())
@@ -122,7 +166,14 @@ func handle(e *executer) string {
 }
 
 func main() {
-	l, err := zap.NewDevelopment()
+	var level zapcore.Level
+	err := level.UnmarshalText([]byte(strings.ToLower(os.Getenv("LOG_LEVEL"))))
+	if err != nil {
+		panic(err)
+	}
+	lc := zap.NewDevelopmentConfig()
+	lc.Level = zap.NewAtomicLevelAt(level)
+	l, err := lc.Build()
 	if err != nil {
 		panic(err)
 	}
@@ -131,16 +182,32 @@ func main() {
 
 	logger.Infof("start main")
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	sigCh := make(chan os.Signal, 1)
+	exitCh := make(chan bool, 1)
+
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	exec, err := newExecuter(logger)
 	if err != nil {
 		logger.Errorf("executer error: %s", err.Error())
 		panic(err)
 	}
-
 	handle(exec)
-	<-c
+
+	go func() {
+		s := <-sigCh
+		logger.Debugf("caught signal :%v", s)
+		if exec.usePodStateReporter {
+			exec.podStateReporter.GetStopCh() <- true
+			<-exec.podStateReporter.GetFinishCh()
+		}
+		if exec.useDeploymentStateReporter {
+			exec.deploymentStateReporter.GetStopCh() <- true
+			<-exec.deploymentStateReporter.GetFinishCh()
+		}
+		exitCh <- true
+	}()
+
+	<-exitCh
 	logger.Infof("finish main")
 }

@@ -47,9 +47,11 @@ spec:
       serviceAccountName: mqtt-kube-operator
       containers:
       - name: mqtt-kube-operator
-        image: techsketch/mqtt-kube-operator:0.1.0
+        image: techsketch/mqtt-kube-operator:0.2.0
         imagePullPolicy: Always
         env:
+        - name: LOG_LEVEL
+          value: "info"
         - name: MQTT_USERNAME
           valueFrom:
             secretKeyRef:
@@ -75,8 +77,17 @@ spec:
             configMapKeyRef:
               name: mqtt-config
               key: mqtt_port
-        - name: MQTT_CMD_TOPIC
+        - name: DEVICE_TYPE
           valueFrom:
             configMapKeyRef:
               name: mqtt-config
-              key: mqtt_cmd_topic
+              key: device_type
+        - name: DEVICE_ID
+          valueFrom:
+            configMapKeyRef:
+              name: mqtt-config
+              key: device_id
+        - name: REPORT_INTERVAL_SEC
+          value: "1"
+        - name: USE_DEPLOYMENT_STATE_REPORTER
+          value: "true"
