@@ -37,7 +37,7 @@ This REST API accept Environment Variables like below:
 |`REPORT_INTERVAL_SEC`|report interval seconds (default 1 second)|
 |`USE_DEPLOYMENT_STATE_REPORTER`|set true when using deploymentStateReporter (default false)|
 |`USE_POD_STATE_REPORTER`|set true when using podStateReporter (default false)|
-|`REPORT_TARGET_LABEL_KEY`|the target label to gather the status of pods|
+|`REPORT_TARGET_LABEL_KEY`|the target label to gather resource status|
 |`KUBE_CONF_PATH`|if set, run this program locally using kubectl's configuration|
 
 ## Run this program locally
@@ -55,6 +55,7 @@ This REST API accept Environment Variables like below:
     $ export DEVICE_ID=delopyer_01
     $ export REPORT_INTERVAL_SEC=1
     $ export USE_DEPLOYMENT_STATE_REPORTER=true
+    $ export REPORT_TARGET_LABEL_KEY=report
     ```
 1. get dependencies (at the first time only)
 

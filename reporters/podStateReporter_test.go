@@ -114,10 +114,9 @@ func setUpPodStateReporterImplMocks(t *testing.T) (*podStateReporterImpl, *mock.
 	corev1.EXPECT().Pods(gomock.Any()).Return(podsClient).Times(1)
 
 	impl := &podStateReporterImpl{
-		logger:         logger.Sugar(),
-		mqttClient:     mqttClient,
-		kubeClient:     kubeClient,
-		targetLabelKey: "test",
+		logger:     logger.Sugar(),
+		mqttClient: mqttClient,
+		kubeClient: kubeClient,
 		getCurrentTime: func() time.Time {
 			return time.Date(2018, 1, 2, 3, 4, 5, 0, time.Local)
 		},
@@ -141,43 +140,66 @@ func TestPodReport(t *testing.T) {
 		{
 			podList: apiv1.PodList{
 				Items: []apiv1.Pod{
-					{ObjectMeta: metav1.ObjectMeta{Name: "testpod1", Labels: map[string]string{"test": "value1"}}, Status: apiv1.PodStatus{Phase: "Running"}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "testpod1", Labels: map[string]string{"testkey": "value1", "dummy": "dummy"}}, Status: apiv1.PodStatus{Phase: "Running"}},
 				},
 			},
 		},
 		{
 			podList: apiv1.PodList{
 				Items: []apiv1.Pod{
-					{ObjectMeta: metav1.ObjectMeta{Name: "testpod1", Labels: map[string]string{"test": "value1"}}, Status: apiv1.PodStatus{Phase: "Running"}},
-					{ObjectMeta: metav1.ObjectMeta{Name: "testpod2", Labels: map[string]string{"test": "value2"}}, Status: apiv1.PodStatus{Phase: "Running"}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "testpod1", Labels: map[string]string{"testkey": "value1", "dummy": "dummy"}}, Status: apiv1.PodStatus{Phase: "Running"}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "testpod2", Labels: map[string]string{"testkey": "value2"}}, Status: apiv1.PodStatus{Phase: "Running"}},
+					{ObjectMeta: metav1.ObjectMeta{Name: "testpod3", Labels: map[string]string{"dummy": "dummy"}}, Status: apiv1.PodStatus{Phase: "Running"}},
 				},
 			},
 		},
 	}
+	testLabels := []struct {
+		key string
+	}{
+		{key: "nil"},
+		{key: ""},
+		{key: "notexit"},
+		{key: "testkey"},
+	}
 
 	dt := time.Date(2018, 1, 2, 3, 4, 5, 0, time.Local).Format(time.RFC3339)
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("pod num=%d", len(testCase.podList.Items)), func(t *testing.T) {
-			impl, mqttClient, token, podsClient, tearDown := setUpPodStateReporterImplMocks(t)
-			defer tearDown()
+		for _, testLabel := range testLabels {
+			t.Run(fmt.Sprintf("pod num=%d, label=%s", len(testCase.podList.Items), testLabel.key), func(t *testing.T) {
+				impl, mqttClient, token, podsClient, tearDown := setUpPodStateReporterImplMocks(t)
+				defer tearDown()
 
-			podsClient.EXPECT().List(gomock.Any()).Return(&testCase.podList, nil).Times(1)
-			if len(testCase.podList.Items) == 0 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
-			} else if len(testCase.podList.Items) == 1 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod1|podlabel|value1|podphase|Running").Return(token).Times(1)
-				token.EXPECT().Wait().Return(true).Times(1)
-				token.EXPECT().Error().Return(nil).Times(1)
-			} else {
-				gomock.InOrder(
-					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod1|podlabel|value1|podphase|Running").Return(token),
-					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|podname|testpod2|podlabel|value2|podphase|Running").Return(token),
-				)
-				token.EXPECT().Wait().Return(true).Times(2)
-				token.EXPECT().Error().Return(nil).Times(2)
-			}
-			impl.Report("/test")
-		})
+				if testLabel.key != "nil" {
+					impl.targetLabelKey = testLabel.key
+				}
+
+				podsClient.EXPECT().List(gomock.Any()).Return(&testCase.podList, nil).Times(1)
+				if len(testCase.podList.Items) == 0 {
+					mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+				} else if len(testCase.podList.Items) == 1 {
+					if testLabel.key == "testkey" {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|pod|testpod1|label|testkey:value1|phase|Running").Return(token).Times(1)
+						token.EXPECT().Wait().Return(true).Times(1)
+						token.EXPECT().Error().Return(nil).Times(1)
+					} else {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+					}
+				} else {
+					if testLabel.key == "testkey" {
+						gomock.InOrder(
+							mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|pod|testpod1|label|testkey:value1|phase|Running").Return(token),
+							mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|pod|testpod2|label|testkey:value2|phase|Running").Return(token),
+						)
+						token.EXPECT().Wait().Return(true).Times(2)
+						token.EXPECT().Error().Return(nil).Times(2)
+					} else {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+					}
+				}
+				impl.Report("/test")
+			})
+		}
 	}
 }
 

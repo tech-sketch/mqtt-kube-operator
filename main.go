@@ -85,12 +85,12 @@ func newExecuter(logger *zap.SugaredLogger) (*executer, error) {
 		}
 		return intervalSec
 	}
+	targetLabelKey := os.Getenv("REPORT_TARGET_LABEL_KEY")
 	if e.usePodStateReporter {
-		targetLabelKey := os.Getenv("REPORT_TARGET_LABEL_KEY")
 		e.podStateReporter = reporters.NewPodStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
 	}
 	if e.useDeploymentStateReporter {
-		e.deploymentStateReporter = reporters.NewDeploymentStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec())
+		e.deploymentStateReporter = reporters.NewDeploymentStateReporter(e.mqttClient, clientset, logger, e.deviceType, e.deviceID, getIntervalSec(), targetLabelKey)
 	}
 
 	return e, nil

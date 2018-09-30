@@ -131,6 +131,7 @@ func setUpDeploymentStateReporterImplMocks(t *testing.T) (*deploymentStateReport
 func TestDeploymentReport(t *testing.T) {
 	var desired1 int32 = 1
 	var desired2 int32 = 11
+	var desired3 int32 = 111
 	testCases := []struct {
 		deploymentList appsv1.DeploymentList
 	}{
@@ -143,8 +144,11 @@ func TestDeploymentReport(t *testing.T) {
 			deploymentList: appsv1.DeploymentList{
 				Items: []appsv1.Deployment{
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "testdeployment1"},
-						Spec:       appsv1.DeploymentSpec{Replicas: &desired1},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:   "testdeployment1",
+							Labels: map[string]string{"testkey": "value1", "dummy": "dummy"},
+						},
+						Spec: appsv1.DeploymentSpec{Replicas: &desired1},
 						Status: appsv1.DeploymentStatus{
 							Replicas:            2,
 							UpdatedReplicas:     3,
@@ -160,8 +164,11 @@ func TestDeploymentReport(t *testing.T) {
 			deploymentList: appsv1.DeploymentList{
 				Items: []appsv1.Deployment{
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "testdeployment1"},
-						Spec:       appsv1.DeploymentSpec{Replicas: &desired1},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:   "testdeployment1",
+							Labels: map[string]string{"testkey": "value1", "dummy": "dummy"},
+						},
+						Spec: appsv1.DeploymentSpec{Replicas: &desired1},
 						Status: appsv1.DeploymentStatus{
 							Replicas:            2,
 							UpdatedReplicas:     3,
@@ -171,8 +178,11 @@ func TestDeploymentReport(t *testing.T) {
 						},
 					},
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "testdeployment2"},
-						Spec:       appsv1.DeploymentSpec{Replicas: &desired2},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:   "testdeployment2",
+							Labels: map[string]string{"testkey": "value2"},
+						},
+						Spec: appsv1.DeploymentSpec{Replicas: &desired2},
 						Status: appsv1.DeploymentStatus{
 							Replicas:            12,
 							UpdatedReplicas:     13,
@@ -181,34 +191,70 @@ func TestDeploymentReport(t *testing.T) {
 							AvailableReplicas:   16,
 						},
 					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:   "testdeployment3",
+							Labels: map[string]string{"dummy": "dummy"},
+						},
+						Spec: appsv1.DeploymentSpec{Replicas: &desired3},
+						Status: appsv1.DeploymentStatus{
+							Replicas:            112,
+							UpdatedReplicas:     113,
+							ReadyReplicas:       114,
+							UnavailableReplicas: 115,
+							AvailableReplicas:   116,
+						},
+					},
 				},
 			},
 		},
 	}
+	testLabels := []struct {
+		key string
+	}{
+		{key: "nil"},
+		{key: ""},
+		{key: "notexit"},
+		{key: "testkey"},
+	}
 
 	dt := time.Date(2018, 1, 2, 3, 4, 5, 0, time.Local).Format(time.RFC3339)
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("deployment num=%d", len(testCase.deploymentList.Items)), func(t *testing.T) {
-			impl, mqttClient, token, deploymentsClient, tearDown := setUpDeploymentStateReporterImplMocks(t)
-			defer tearDown()
+		for _, testLabel := range testLabels {
+			t.Run(fmt.Sprintf("deployment num=%d, label=%s", len(testCase.deploymentList.Items), testLabel.key), func(t *testing.T) {
+				impl, mqttClient, token, deploymentsClient, tearDown := setUpDeploymentStateReporterImplMocks(t)
+				defer tearDown()
 
-			deploymentsClient.EXPECT().List(gomock.Any()).Return(&testCase.deploymentList, nil).Times(1)
-			if len(testCase.deploymentList.Items) == 0 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
-			} else if len(testCase.deploymentList.Items) == 1 {
-				mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token).Times(1)
-				token.EXPECT().Wait().Return(true).Times(1)
-				token.EXPECT().Error().Return(nil).Times(1)
-			} else {
-				gomock.InOrder(
-					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token),
-					mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment2|desired|11|current|12|updated|13|ready|14|unavailable|15|available|16").Return(token),
-				)
-				token.EXPECT().Wait().Return(true).Times(2)
-				token.EXPECT().Error().Return(nil).Times(2)
-			}
-			impl.Report("/test")
-		})
+				if testLabel.key != "nil" {
+					impl.targetLabelKey = testLabel.key
+				}
+
+				deploymentsClient.EXPECT().List(gomock.Any()).Return(&testCase.deploymentList, nil).Times(1)
+				if len(testCase.deploymentList.Items) == 0 {
+					mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+				} else if len(testCase.deploymentList.Items) == 1 {
+					if testLabel.key == "testkey" {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|label|testkey:value1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token).Times(1)
+						token.EXPECT().Wait().Return(true).Times(1)
+						token.EXPECT().Error().Return(nil).Times(1)
+					} else {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+					}
+				} else {
+					if testLabel.key == "testkey" {
+						gomock.InOrder(
+							mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment1|label|testkey:value1|desired|1|current|2|updated|3|ready|4|unavailable|5|available|6").Return(token),
+							mqttClient.EXPECT().Publish("/test", byte(0), false, dt+"|deployment|testdeployment2|label|testkey:value2|desired|11|current|12|updated|13|ready|14|unavailable|15|available|16").Return(token),
+						)
+						token.EXPECT().Wait().Return(true).Times(2)
+						token.EXPECT().Error().Return(nil).Times(2)
+					} else {
+						mqttClient.EXPECT().Publish("/test", byte(0), false, gomock.Any()).Times(0)
+					}
+				}
+				impl.Report("/test")
+			})
+		}
 	}
 }
 
