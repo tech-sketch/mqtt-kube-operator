@@ -73,13 +73,13 @@ This REST API accept Environment Variables like below:
 1. build program and build container image
 
     ```bash
-    $ make VERSION=0.1.0
+    $ make VERSION=0.2.0
     ```
 1. push container to DockerHub
 
     ```bash
     $ docker login
-    $ make push VERSION=0.1.0
+    $ make push VERSION=0.2.0
     ```
 
 ## License
