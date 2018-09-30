@@ -13,9 +13,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
@@ -164,7 +166,14 @@ func handle(e *executer) string {
 }
 
 func main() {
-	l, err := zap.NewDevelopment()
+	var level zapcore.Level
+	err := level.UnmarshalText([]byte(strings.ToLower(os.Getenv("LOG_LEVEL"))))
+	if err != nil {
+		panic(err)
+	}
+	lc := zap.NewDevelopmentConfig()
+	lc.Level = zap.NewAtomicLevelAt(level)
+	l, err := lc.Build()
 	if err != nil {
 		panic(err)
 	}

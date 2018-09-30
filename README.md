@@ -25,6 +25,7 @@ This REST API accept Environment Variables like below:
 
 |Environment Variable|Summary|
 |:--|:--|
+|`LOG_LEVEL`|log level|
 |`MQTT_USE_TLS`|set `false` when connecting local MQTT Broker without TLS|
 |`MQTT_TLS_CA_PATH`|path to cafile used to connect MQTT Broker|
 |`MQTT_USERNAME`|username used to connect MQTT Broker|

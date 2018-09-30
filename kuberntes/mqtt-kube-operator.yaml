@@ -50,6 +50,8 @@ spec:
         image: techsketch/mqtt-kube-operator:0.1.0
         imagePullPolicy: Always
         env:
+        - name: LOG_LEVEL
+          value: "info"
         - name: MQTT_USERNAME
           valueFrom:
             secretKeyRef:
