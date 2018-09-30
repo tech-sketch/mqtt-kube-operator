@@ -10,7 +10,7 @@ import (
 )
 
 /*
-HandlerInf : a interface to specify the method signatures that an object handler should implement.
+HandlerInf : a interface to specify the method signatures that an object handler should be implemented.
 */
 type HandlerInf interface {
 	Apply(runtime.Object) string

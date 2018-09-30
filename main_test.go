@@ -29,14 +29,18 @@ func setUpMocks(t *testing.T) (*executer, *mock.MockClient, *mock.MockToken, fun
 	loggerConfig.Level = zap.NewAtomicLevelAt(zap.FatalLevel)
 	logger, _ := loggerConfig.Build()
 
-	client := mock.NewMockClient(ctrl)
+	mqttClient := mock.NewMockClient(ctrl)
 	token := mock.NewMockToken(ctrl)
+	podStateReporter := mock.NewMockReporterInf(ctrl)
+	deploymentStateReporter := mock.NewMockReporterInf(ctrl)
 
 	exec := &executer{
-		logger: logger.Sugar(),
-		client: client,
+		logger:                  logger.Sugar(),
+		mqttClient:              mqttClient,
+		podStateReporter:        podStateReporter,
+		deploymentStateReporter: deploymentStateReporter,
 	}
-	return exec, client, token, func() {
+	return exec, mqttClient, token, func() {
 		logger.Sync()
 		ctrl.Finish()
 	}
@@ -44,7 +48,7 @@ func setUpMocks(t *testing.T) (*executer, *mock.MockClient, *mock.MockToken, fun
 
 func TestSetMQTTOptions(t *testing.T) {
 	assert := assert.New(t)
-	exec, client, token, tearDown := setUpMocks(t)
+	exec, mqttClient, token, tearDown := setUpMocks(t)
 	defer tearDown()
 
 	useTLSCases := []struct {
@@ -134,8 +138,8 @@ func TestSetMQTTOptions(t *testing.T) {
 					assert.NotNil(exec.opts.TLSConfig.RootCAs)
 				}
 
-				client.EXPECT().Connect().Times(0)
-				client.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				mqttClient.EXPECT().Connect().Times(0)
+				mqttClient.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 				token.EXPECT().Wait().Times(0)
 			})
 		}
@@ -144,7 +148,7 @@ func TestSetMQTTOptions(t *testing.T) {
 
 func TestGetMQTTOptionsError(t *testing.T) {
 	assert := assert.New(t)
-	exec, client, token, tearDown := setUpMocks(t)
+	exec, mqttClient, token, tearDown := setUpMocks(t)
 	defer tearDown()
 
 	caCases := []struct {
@@ -181,8 +185,8 @@ func TestGetMQTTOptionsError(t *testing.T) {
 				assert.Equal("failed to parse root certificate: ./main.go", err.Error())
 			}
 
-			client.EXPECT().Connect().Times(0)
-			client.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			mqttClient.EXPECT().Connect().Times(0)
+			mqttClient.EXPECT().Subscribe(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 			token.EXPECT().Wait().Times(0)
 		})
 	}
@@ -190,13 +194,13 @@ func TestGetMQTTOptionsError(t *testing.T) {
 
 func TestHandle(t *testing.T) {
 	assert := assert.New(t)
-	exec, client, token, tearDown := setUpMocks(t)
+	exec, mqttClient, token, tearDown := setUpMocks(t)
 	defer tearDown()
 
 	exec.opts = mqtt.NewClientOptions()
 	exec.opts.AddBroker("tcp://mqtt.example.com:1883")
 
-	client.EXPECT().Connect().Return(token)
+	mqttClient.EXPECT().Connect().Return(token)
 	token.EXPECT().Wait().Return(false)
 
 	msg := handle(exec)
@@ -204,14 +208,42 @@ func TestHandle(t *testing.T) {
 }
 
 func TestOnConnect(t *testing.T) {
-	exec, client, token, tearDown := setUpMocks(t)
+	exec, mqttClient, token, tearDown := setUpMocks(t)
 	defer tearDown()
 
-	exec.messageHandler = handlers.NewMessageHandler(nil, exec.logger, "/test")
+	exec.messageHandler = handlers.NewMessageHandler(nil, exec.logger, "testDeviceType", "testDeviceID")
 
-	client.EXPECT().Subscribe("/test/cmd", byte(0), gomock.Any()).Return(token)
-	token.EXPECT().Wait().Return(true)
-	token.EXPECT().Error().Return(nil)
+	podStateReporcerCases := []struct {
+		use bool
+	}{
+		{use: true},
+		{use: false},
+	}
+	deploymentStateReporcerCases := []struct {
+		use bool
+	}{
+		{use: true},
+		{use: false},
+	}
 
-	exec.onConnect(client)
+	for _, pCase := range podStateReporcerCases {
+		for _, dCase := range deploymentStateReporcerCases {
+			t.Run(fmt.Sprintf("usePodStateReporter=%v, useDeploymentStateReporter=%v", pCase.use, dCase.use), func(t *testing.T) {
+				exec.usePodStateReporter = pCase.use
+				exec.useDeploymentStateReporter = dCase.use
+
+				mqttClient.EXPECT().Subscribe("/testDeviceType/testDeviceID/cmd", byte(0), gomock.Any()).Return(token)
+				token.EXPECT().Wait().Return(true)
+				token.EXPECT().Error().Return(nil)
+				if exec.usePodStateReporter {
+					exec.podStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+				}
+				if exec.useDeploymentStateReporter {
+					exec.deploymentStateReporter.(*mock.MockReporterInf).EXPECT().StartReporting()
+				}
+
+				exec.onConnect(mqttClient)
+			})
+		}
+	}
 }

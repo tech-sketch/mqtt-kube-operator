@@ -26,7 +26,7 @@ import (
 	"github.com/tech-sketch/mqtt-kube-operator/mock"
 )
 
-func setUpMocks(t *testing.T, cmdTopic string) (*MessageHandler, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockClient, *mock.MockMessage, *mock.MockToken, func()) {
+func setUpMocks(t *testing.T, deviceType string, deviceID string) (*MessageHandler, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockHandlerInf, *mock.MockClient, *mock.MockMessage, *mock.MockToken, func()) {
 	ctrl := gomock.NewController(t)
 
 	loggerConfig := zap.NewProductionConfig()
@@ -40,7 +40,8 @@ func setUpMocks(t *testing.T, cmdTopic string) (*MessageHandler, *mock.MockHandl
 
 	handler := &MessageHandler{
 		logger:           logger.Sugar(),
-		cmdTopic:         cmdTopic,
+		deviceType:       deviceType,
+		deviceID:         deviceID,
 		deployment:       deployment,
 		service:          service,
 		configmap:        configmap,
@@ -61,26 +62,36 @@ func setUpMocks(t *testing.T, cmdTopic string) (*MessageHandler, *mock.MockHandl
 func TestGetTopic(t *testing.T) {
 	assert := assert.New(t)
 
-	topicCases := []struct {
+	deviceTypeCases := []struct {
 		name string
 	}{
-		{name: "/test/cmd/topic"},
+		{name: "dType"},
 		{name: "/"},
 		{name: ""},
 	}
 
-	for _, topic := range topicCases {
-		t.Run(fmt.Sprintf("topic name=%v", topic.name), func(t *testing.T) {
-			messageHandler := &MessageHandler{cmdTopic: topic.name}
+	deviceIDCases := []struct {
+		name string
+	}{
+		{name: "dID"},
+		{name: "/"},
+		{name: ""},
+	}
 
-			assert.Equal(topic.name+"/cmd", messageHandler.GetCmdTopic())
-			assert.Equal(topic.name+"/cmdexe", messageHandler.GetCmdExeTopic())
-		})
+	for _, deviceTypeCase := range deviceTypeCases {
+		for _, deviceIDCase := range deviceIDCases {
+			t.Run(fmt.Sprintf("deviceType=%v, deviceID=%v", deviceTypeCase.name, deviceIDCase.name), func(t *testing.T) {
+				messageHandler := &MessageHandler{deviceType: deviceTypeCase.name, deviceID: deviceIDCase.name}
+
+				assert.Equal(fmt.Sprintf("/%s/%s/cmd", deviceTypeCase.name, deviceIDCase.name), messageHandler.GetCmdTopic())
+				assert.Equal(fmt.Sprintf("/%s/%s/cmdexe", deviceTypeCase.name, deviceIDCase.name), messageHandler.GetCmdExeTopic())
+			})
+		}
 	}
 }
 
 func TestCommandInvalidPayload(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payloadCases := []struct {
@@ -105,7 +116,7 @@ func TestCommandInvalidPayload(t *testing.T) {
 				p = []byte(c.payload)
 			}
 			message.EXPECT().Payload().Return(p)
-			client.EXPECT().Publish("/test/cmdexe", byte(0), false, c.result).Return(token)
+			client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, c.result).Return(token)
 			token.EXPECT().Wait().Return(false)
 			deployment.EXPECT().Apply(gomock.Any()).Times(0)
 			deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -122,14 +133,14 @@ func TestCommandInvalidPayload(t *testing.T) {
 }
 
 func TestDeployment(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/deployment.yaml")
 
 	t.Run("apply", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@apply|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@apply|apply deployment success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@apply|apply deployment success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(NewRawDataMatcher(rawData)).Return("apply deployment success").Times(1)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -145,7 +156,7 @@ func TestDeployment(t *testing.T) {
 
 	t.Run("delete", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@delete|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@delete|delete deployment success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@delete|delete deployment success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(NewRawDataMatcher(rawData)).Return("delete deployment success").Times(1)
@@ -161,14 +172,14 @@ func TestDeployment(t *testing.T) {
 }
 
 func TestService(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/service.yaml")
 
 	t.Run("apply", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@apply|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@apply|apply service success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@apply|apply service success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -184,7 +195,7 @@ func TestService(t *testing.T) {
 
 	t.Run("delete", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@delete|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@delete|delete service success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@delete|delete service success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -200,14 +211,14 @@ func TestService(t *testing.T) {
 }
 
 func TestConfigmap(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/configmap.yaml")
 
 	t.Run("apply", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@apply|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@apply|apply configmap success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@apply|apply configmap success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -223,7 +234,7 @@ func TestConfigmap(t *testing.T) {
 
 	t.Run("delete", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@delete|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@delete|delete configmap success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@delete|delete configmap success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -239,14 +250,14 @@ func TestConfigmap(t *testing.T) {
 }
 
 func TestSecret(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payload, rawData := getPayloadFromFixture(t, "../testdata/secret.yaml")
 
 	t.Run("apply", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@apply|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@apply|apply secret success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@apply|apply secret success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -262,7 +273,7 @@ func TestSecret(t *testing.T) {
 
 	t.Run("delete", func(t *testing.T) {
 		message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@delete|%s", url.QueryEscape(string(payload)))))
-		client.EXPECT().Publish("/test/cmdexe", byte(0), false, "a@delete|delete secret success").Return(token)
+		client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, "a@delete|delete secret success").Return(token)
 		token.EXPECT().Wait().Return(false)
 		deployment.EXPECT().Apply(gomock.Any()).Times(0)
 		deployment.EXPECT().Delete(gomock.Any()).Times(0)
@@ -278,7 +289,7 @@ func TestSecret(t *testing.T) {
 }
 
 func TestUnknownType(t *testing.T) {
-	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "/test")
+	messageHandler, deployment, service, configmap, secret, client, message, token, tearDown := setUpMocks(t, "dType", "dID")
 	defer tearDown()
 
 	payload, _ := getPayloadFromFixture(t, "../testdata/namespace.yaml")
@@ -293,7 +304,7 @@ func TestUnknownType(t *testing.T) {
 	for _, c := range methodCases {
 		t.Run(c.method, func(t *testing.T) {
 			message.EXPECT().Payload().Return([]byte(fmt.Sprintf("a@%s|%s", c.method, url.QueryEscape(string(payload)))))
-			client.EXPECT().Publish("/test/cmdexe", byte(0), false, fmt.Sprintf("a@%s|unknown type, skip this message", c.method)).Return(token)
+			client.EXPECT().Publish("/dType/dID/cmdexe", byte(0), false, fmt.Sprintf("a@%s|unknown type, skip this message", c.method)).Return(token)
 			token.EXPECT().Wait().Return(false)
 			deployment.EXPECT().Apply(gomock.Any()).Times(0)
 			deployment.EXPECT().Delete(gomock.Any()).Times(0)

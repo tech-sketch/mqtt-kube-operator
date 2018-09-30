@@ -52,7 +52,8 @@ MessageHandler : a struct handling object handlers to deploy an object generated
 */
 type MessageHandler struct {
 	logger           *zap.SugaredLogger
-	cmdTopic         string
+	deviceType       string
+	deviceID         string
 	deployment       HandlerInf
 	service          HandlerInf
 	configmap        HandlerInf
@@ -63,10 +64,11 @@ type MessageHandler struct {
 /*
 NewMessageHandler : a factory method to create MessageHandler.
 */
-func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger, cmdTopic string) *MessageHandler {
+func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogger, deviceType string, deviceID string) *MessageHandler {
 	return &MessageHandler{
 		logger:           logger,
-		cmdTopic:         cmdTopic,
+		deviceType:       deviceType,
+		deviceID:         deviceID,
 		deployment:       newDeploymentHandler(clientset, logger),
 		service:          newServiceHandler(clientset, logger),
 		configmap:        newConfigmapHandler(clientset, logger),
@@ -79,14 +81,14 @@ func NewMessageHandler(clientset *kubernetes.Clientset, logger *zap.SugaredLogge
 GetCmdTopic : get the command topic name
 */
 func (h *MessageHandler) GetCmdTopic() string {
-	return h.cmdTopic + "/cmd"
+	return "/" + h.deviceType + "/" + h.deviceID + "/cmd"
 }
 
 /*
 GetCmdExeTopic : get the command result topic name
 */
 func (h *MessageHandler) GetCmdExeTopic() string {
-	return h.cmdTopic + "/cmdexe"
+	return "/" + h.deviceType + "/" + h.deviceID + "/cmdexe"
 }
 
 /*
